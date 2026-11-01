@@ -1,0 +1,95 @@
+# Production settings for the Hobart -> Russell Falls tour (2 November 2026).
+
+[book]
+title = "Hobart to Russell Falls"
+artist = "Audio Tours"
+year = 2026
+
+[narration]
+model_id = "eleven_v4"
+output_format = "mp3_44100_128"
+
+# Picked by Scott on 2026-11-02 from three rounds of Voice Design previews
+# (build/auditions/stop-1-design-gravitas-female-3.mp3): "more gravitas, similar pacing".
+[voices.narrator]
+name = "Tour-Tasmania-Narrator"
+voice_id = "ShIjYUEv1pABubDlTWxD"
+source = "Voice Design (eleven_ttv_v3), saved 2026-11-02"
+
+[render]
+max_chunk_chars = 1500
+context_chars = 600
+announce_titles = true
+title_label = false      # "The Road That Tried to Sink.", not "Stop One. ..."
+
+[master]
+target_lufs = -16
+true_peak = -1.5
+head_seconds = 0.3
+tail_seconds = 1.5
+bitrate = "128k"
+sting = "chime"          # [sfx.chime] before every stop
+sting_level_db = -6
+sting_gap = 0.4
+
+# Sound effects: one short chime at the start of every stop, so a new story is obvious in the car.
+[sfx.chime]
+prompt = "A gentle, warm two-note marimba chime, soft and friendly, like an announcement on a family tour bus. Clean, no reverb tail."
+duration = 1.5
+variants = 2
+chosen = 1
+
+# --- Stops -----------------------------------------------------------------------
+# Stops play in this order. Trigger points sit on the OSRM driving route a few minutes
+# before each landmark (route.json). Only the next stop in sequence, or the one after it,
+# can trigger; that is what keeps stop 7 (same spot as stop 3) and stop 8 (near stop 2)
+# silent on the way out. A `strict` stop also waits until the stop before it is handled. Radii follow research.txt's 0.5-1 km suggestion; untested on the road.
+
+[stops.stop-1]
+lat = -42.77156
+lon = 147.23826
+radius = 900
+place = "Approaching Granton and the Bridgewater Bridge junction"
+
+[stops.stop-2]
+lat = -42.78309
+lon = 147.07977
+radius = 900
+place = "Entering New Norfolk from Hobart"
+
+[stops.stop-3]
+lat = -42.73207
+lon = 146.90506
+radius = 1000
+place = "Approaching Bushy Park and the hop fields"
+
+[stops.stop-4]
+lat = -42.68044
+lon = 146.78524
+radius = 800
+place = "Leaving Westerway towards National Park"
+
+[stops.stop-5]
+lat = -42.68184
+lon = 146.71635
+radius = 300
+place = "Parked at Mount Field Visitor Centre"
+
+[stops.stop-6]
+lat = -42.68120
+lon = 146.72986
+radius = 600
+place = "Leaving Mount Field along the Tyenna River"
+strict = true            # its zone is on the road in, so it must wait for stop-5 (caught by tests/player_drive.py)
+
+[stops.stop-7]
+lat = -42.73207
+lon = 146.90506
+radius = 1000
+place = "Past Bushy Park, 5-10 minutes before Plenty and the Salmon Ponds"
+
+[stops.stop-8]
+lat = -42.78407
+lon = 147.09072
+radius = 900
+place = "Leaving New Norfolk towards Hobart (Boyer Mill is across the river)"

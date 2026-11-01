@@ -1,0 +1,15 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Generated audio is large and reproducible from the cache key; keep it out of git.
+# Published audio lives under site/<tour>/audio/ and IS committed (Pages serves it).
+tours/*/build/
+tours/*/cache/
+
+.DS_Store
+
+# Research notes name the family; keep them out of the public repo.
+tours/*/source/research.txt
