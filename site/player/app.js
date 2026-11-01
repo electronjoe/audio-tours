@@ -243,11 +243,35 @@ function onFix(lat, lon, accuracy, speed) {
   render();
 }
 
+// GPS problem shown in the status chip: "denied", "nofix" or null.
+S.gpsProblem = null;
+let watchId = null;
+
 function startGPS() {
   if (!("geolocation" in navigator)) return toast("No GPS in this browser");
-  navigator.geolocation.watchPosition(
-    (p) => !S.sim && onFix(p.coords.latitude, p.coords.longitude, p.coords.accuracy, p.coords.speed),
-    (e) => toast(`GPS: ${e.message}`),
+  if (watchId != null) navigator.geolocation.clearWatch(watchId);
+  watchId = navigator.geolocation.watchPosition(
+    (p) => {
+      S.gpsProblem = null;
+      if (!S.sim) onFix(p.coords.latitude, p.coords.longitude, p.coords.accuracy, p.coords.speed);
+    },
+    (e) => {
+      if (e.code === e.PERMISSION_DENIED) {
+        S.gpsProblem = "denied";
+        toast("Location is blocked for this site: tap the icon left of the address bar → Permissions → Location → Allow, then reload.");
+      } else {
+        // No satellite fix yet (indoors, under a roof, a ship's hull). Keep trying, and
+        // meanwhile ask for a rough network location so the distances show something.
+        S.gpsProblem = "nofix";
+        navigator.geolocation.getCurrentPosition(
+          (p) => !S.sim && !S.fix && onFix(p.coords.latitude, p.coords.longitude, p.coords.accuracy, p.coords.speed),
+          () => {},
+          { enableHighAccuracy: false, maximumAge: 60000, timeout: 20000 },
+        );
+        setTimeout(startGPS, 5000);
+      }
+      render();
+    },
     { enableHighAccuracy: true, maximumAge: 2000, timeout: 30000 },
   );
 }
@@ -410,7 +434,10 @@ function renderStatus() {
   const all = withAudio > 0 && S.cached.size >= withAudio;
   const weak = f && f.accuracy > MAX_ACCURACY;
   const chips = [
-    [f ? (weak ? `GPS weak (±${Math.round(f.accuracy)} m)` : "GPS ✓") : S.started ? "GPS: waiting…" : "", weak || (S.started && !f)],
+    [S.gpsProblem === "denied" ? "GPS blocked (see Permissions)"
+      : S.gpsProblem === "nofix" && (!f || weak) ? "GPS: no satellite fix yet (go outside); retrying"
+      : f ? (weak ? `GPS weak (±${Math.round(f.accuracy)} m)` : "GPS ✓") : S.started ? "GPS: waiting…" : "",
+     S.gpsProblem || weak || (S.started && !f)],
     [S.started && !S.wakeLock ? "Screen may sleep" : "", true],
     [all ? "Offline ✓" : `Downloaded ${S.cached.size}/${withAudio}`, !all],
     [S.sim ? `Simulating ×${S.sim.factor}` : "", false],
