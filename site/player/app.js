@@ -54,6 +54,7 @@ const S = {
 const audio = new Audio();
 audio.preload = "auto";
 let objectURL = null;
+let loaded = null; // the stop whose audio is in the element (null: Start's unlock clip)
 
 // --- persistence --------------------------------------------------------------
 
@@ -207,6 +208,7 @@ async function play(s) {
     if (objectURL) URL.revokeObjectURL(objectURL);
     objectURL = URL.createObjectURL(await audioBlob(s));
     audio.src = objectURL;
+    loaded = s;
     await audio.play();
   } catch (err) {
     // Usually autoplay being refused, or audio that isn't downloaded while offline.
@@ -228,6 +230,9 @@ async function play(s) {
 }
 
 audio.addEventListener("ended", () => {
+  // Only the playing stop's own audio ending counts. Start's silent unlock clip ends at once,
+  // and a fix in a zone right after Start can begin a stop while its audio is still loading.
+  if (S.current && loaded !== S.current) return;
   if (S.current) S.status[S.current.id] = "played";
   offerSong(S.current);
   save();
@@ -452,6 +457,7 @@ function start() {
   // replace a stop that is already playing (Resume or Play now can call start()).
   if (!S.current) {
     audio.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+    loaded = null;
     audio.play().catch(() => {});
   }
   keepAwake();

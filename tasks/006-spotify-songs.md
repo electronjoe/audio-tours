@@ -172,7 +172,12 @@ minutes.
   it says Save for later; back where there is room, Play returns; and the card clears when
   stop 2 starts.
 - Fixed on the way: the Pause/Skip row stayed on screen after a stop ended, because
-  `.controls { display: flex }` overrode its `hidden` attribute.
+  `.controls { display: flex }` overrode its `hidden` attribute. And a stop that GPS
+  triggered within milliseconds of Start was marked played unheard: the silent clip Start plays
+  to unlock audio ended while the stop's audio was still loading, and the `ended` handler took
+  that as the stop ending. Now only the playing stop's own audio ending counts (`loaded`).
+  `song_check` in the player test caught it (2 of 5 runs failed before the fix, 10 of 10 pass
+  after).
 - Not built: the optional "Drive soundtrack" list.
 
 ## Acceptance
