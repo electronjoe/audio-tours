@@ -150,28 +150,31 @@ def song_check(page, ctx, tour: dict, check) -> None:
                 if 0 < metres(pt, (s2["lat"], s2["lon"])) - s2["radius"] < 10 * (song["length"] + 60) - 300)
 
     def fix(lat, lon, speed):
+        # onFix renders synchronously, so the Now card is current when this returns.
         page.evaluate("([lat, lon, v]) => window.__tour.onFix(lat, lon, 8, v)", [lat, lon, speed])
-        page.wait_for_timeout(200)
 
     def card() -> str:
         return page.inner_text("#now")
 
     try:
+        # At s1 before the reload, so no fix from an earlier section reaches the new page. The
+        # browser's own GPS may then trigger stop 1 the moment Start is tapped, while the unlock
+        # clip Start plays is ending: that must not count as stop 1 ending.
+        ctx.set_geolocation({"latitude": s1["lat"], "longitude": s1["lon"], "accuracy": 8})
         fresh(page)
         check(page.evaluate("() => Boolean(window.__tour.S.tour.stops[0].song)"), "the fixture tour.json (with a song) is served")
-        ctx.set_geolocation({"latitude": s1["lat"], "longitude": s1["lon"], "accuracy": 8})
         page.click("#start")
-        page.wait_for_timeout(300)
         fix(s1["lat"], s1["lon"], 10)
-        page.wait_for_function("() => window.__tour.S.current", timeout=5000)
+        page.wait_for_function("() => { const S = window.__tour.S, a = window.__tour.audio; "
+                               "return S.current && !a.paused && a.currentTime > 0.2; }", timeout=10000)
         st = state(page)
-        check(st["current"] == s1["id"] and song["title"] not in card(),
-              f"while {s1['id']} plays, no song card (current={st['current']}, queue={st['queue']}, now={card()[:120]!r})")
+        check(st["current"] == s1["id"] and not st["status"].get(s1["id"]) and song["title"] not in card(),
+              f"while {s1['id']} plays, no song card (current={st['current']}, status={st['status']}, now={card()[:120]!r})")
         page.click(f"details.stop[data-id={s1['id']}] summary")
         link = page.locator(f"details.stop[data-id={s1['id']}] a.song-link")
         check(link.count() == 1 and link.get_attribute("href") == song["spotify"], "the song is in the stop's expanded card")
         finish_current(page)
-        page.wait_for_timeout(300)
+        page.wait_for_function("() => window.__tour.S.song && !window.__tour.S.current", timeout=5000)
         play = page.locator("#now a.song-play")
         check(state(page)["current"] is None and song["title"] in card() and song["why"] in card(),
               "after the stop ends, the Now card shows the song")
