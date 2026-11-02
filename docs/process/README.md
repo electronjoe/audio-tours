@@ -1,11 +1,12 @@
 # Making a tour: process
 
 How a tour goes from "we're driving from A to B on Saturday" to audio on the phone. Each stage
-has its own document. The pipeline commands are in the top-level `README.md`, and the parser
-contract is in `docs/script-format.md`.
+has its own document. The pipeline commands are in the top-level `README.md`, and the script
+format the parser accepts is in [5-scripts.md](5-scripts.md#the-format-contract).
 
 | Stage | Document | Output |
 | --- | --- | --- |
+| 0. Start | this page | `uv run tour new <slug> --title "..."`: `tour.toml`, `plan.md`, `source/research.md` and an empty draft, from [templates/](templates/) |
 | 1. Route | [1-route.md](1-route.md) | `tours/<slug>/route.json`, legs and timings |
 | 2. Stops | [2-stops.md](2-stops.md) | `[stops.*]` in `tour.toml`, with trigger points and time budgets |
 | 3. Research | [3-research.md](3-research.md) | `source/research.md` (gitignored): a broad pool of facts with sources |
@@ -30,7 +31,8 @@ general into a task in `tasks/` or an edit to these documents.
   dates go in gitignored files only (`source/research.*`). Committed files say "the family" or
   "the passengers".
 - **Spend deliberately.** Every paid call goes through `spend.Guard`. Check
-  `uv run tour account` before a full render.
+  `uv run tour account` before a full render. Hobart is test-only (`[tour] test_only = true`):
+  no new paid content there, only test renders of a pipeline change.
 
 ## What the Hobart trial taught us (2026-11-02)
 

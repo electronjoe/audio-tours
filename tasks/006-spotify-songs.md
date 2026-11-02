@@ -1,6 +1,6 @@
 # 006: Song moments with Spotify links
 
-Status: doing (built and deployed; Hobart stop 8 has a song. Needs its spoken segment, more songs and a phone test) · Priority: medium · Raised: 2026-11-02 (Hobart road test)
+Status: doing (built and deployed; Hobart stop 8 has a song card. Needs a phone test, and a spoken song segment on the next tour) · Priority: medium · Raised: 2026-11-02 (Hobart road test)
 
 ## Why
 
@@ -146,8 +146,9 @@ minutes.
   `tour check` then confirmed the title and the 224 s length.
 - **Room:** stop 8 is the last stop, so nothing is armed after it and the player always offers
   ▶ Play. `plan-check` gives 1003 s spare after the audio, song and margin.
-- **Still to do:** the spoken song segment (30–60 s) at the end of stop 8's script, which needs
-  a paid re-render; and 1–3 more songs to reach the 2–4 the topics rule asks for.
+- **Still to do:** a spoken song segment (30–60 s) and 2–4 songs per tour, on the next tour.
+  Hobart became test-only on 2 Nov 2026, so stop 8 keeps its card with no segment (no paid
+  re-render) and gets no more songs. It stays the player's song test case.
 
 ### As built (2 Nov 2026)
 
@@ -208,8 +209,8 @@ minutes.
 - [x] `tour check` rejects a song link whose oEmbed title doesn't match `title`
       (`tests/test_songs.py`).
 - [ ] A stop with a song has a spoken song segment that names the song and the artist and says
-      why it is there. (Hobart stop 8 has a song but no segment yet: writing it changes the
-      script and needs a paid re-render of stop 8. `tour check` warns until it is done.)
+      why it is there. (To prove on the next tour. Hobart is test-only, so its stop 8 keeps the song
+      with no segment, and `tour check` keeps warning about it.)
 - [x] `tests/player_drive.py` checks that the song card appears after the stop ends and clears
       when the next stop starts.
 

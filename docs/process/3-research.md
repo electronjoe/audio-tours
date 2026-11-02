@@ -6,6 +6,8 @@ The Hobart trial went deep on local history and too narrow elsewhere. Wildlife, 
 picture and music were the gaps.
 
 Notes go in `tours/<slug>/source/research.md`. It is gitignored because it may name the family.
+`tour new` starts it from [templates/research.md](templates/research.md), which has a heading
+for every category below and the one-line item format.
 
 ## Sweep every category, for the region and for each candidate stop
 

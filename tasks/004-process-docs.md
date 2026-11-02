@@ -37,10 +37,16 @@ First drafts written 2026-11-02 under `docs/process/`:
 Still to do:
 
 - [ ] Use the documents on the next tour and revise wherever they were wrong or vague.
-- [ ] Once 005 lands, fold `docs/script-format.md` (the parser contract) into the scripts
-      process.
-- [ ] Add a research-notes template, `tours/<slug>/source/research.md` (gitignored like
-      `research.txt`), so the sweep has a fixed shape.
+- [x] Once 005 lands, fold `docs/script-format.md` (the parser contract) into the scripts
+      process. Done 2026-11-02: it is now "The format contract" at the end of
+      `docs/process/5-scripts.md` (how to use it, what the pipeline does, the prompt), and
+      `tests/test_script.py` checks the prompt's example there. `docs/script-format.md` is gone.
+- [x] Add a research-notes template, `tours/<slug>/source/research.md` (gitignored like
+      `research.txt`), so the sweep has a fixed shape. Done 2026-11-02:
+      `docs/process/templates/research.md`, with `plan.md`, `tour.toml` and an empty draft
+      beside it, all written by `uv run tour new <slug> --title "..."` (`src/audiotour/new.py`,
+      `tests/test_new.py`). `.gitignore` only covered `research.txt`, not the `research.*` the
+      docs promised; it now ignores `tours/*/source/research.*`.
 
 ## Acceptance
 

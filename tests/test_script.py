@@ -104,7 +104,7 @@ def test_check_no_tracks_names_the_first_heading():
 
 def test_script_format_example_is_clean():
     """The example in the prompt must pass the checker, so the contract can't drift."""
-    doc = (REPO_ROOT / "docs" / "script-format.md").read_text(encoding="utf-8")
+    doc = (REPO_ROOT / "docs" / "process" / "5-scripts.md").read_text(encoding="utf-8")
     [example] = re.findall(r"^```\n(.*?)^```$", doc, re.MULTILINE | re.DOTALL)
     assert [t.id for t in parse_tracks(example)] == ["stop-1", "stop-2"]
     assert check(example) == []

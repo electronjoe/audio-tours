@@ -10,13 +10,21 @@ import shutil
 import sys
 from pathlib import Path
 
-from . import config, eleven, master, publish, render, songs
+from . import config, eleven, master, new, publish, render, songs
 from . import route as route_tools
 from .script import Problem, check_file, load_tracks
 from .spend import Guard, read_ledger
 
 WORDS_PER_MINUTE = 130
 DEFAULT_MODEL = "eleven_v4"
+
+
+def cmd_new(args: argparse.Namespace) -> None:
+    """Start a tour folder from docs/process/templates/."""
+    for path in new.create(args.slug, args.title):
+        print(f"  -> {config.show(path)}")
+    print(f"Next: docs/process/1-route.md. Fill in [route.*] in tours/{args.slug}/tour.toml, then"
+          f" `uv run tour route {args.slug}`.")
 
 
 def cmd_estimate(args: argparse.Namespace) -> None:
@@ -44,8 +52,8 @@ def cmd_estimate(args: argparse.Namespace) -> None:
 
 
 def cmd_check(args: argparse.Namespace) -> None:
-    """Report everything in the draft that breaks docs/script-format.md, and check each song's
-    Spotify link (tasks/006); exit 1 on errors."""
+    """Report everything in the draft that breaks the format in docs/process/5-scripts.md, and
+    check each song's Spotify link (tasks/006); exit 1 on errors."""
     tour = config.tour(args.tour, args.draft)
     problems = check_file(tour.draft, tour.settings)
     for t in load_tracks(tour.draft):
@@ -242,13 +250,18 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="tour")
     sub = parser.add_subparsers(required=True)
 
+    p = sub.add_parser("new", help="offline: start tours/<slug>/ from docs/process/templates/")
+    p.add_argument("slug", help="folder name under tours/ and site/, e.g. bruny-island")
+    p.add_argument("--title", required=True, help='the tour title, e.g. "Hobart to Bruny Island"')
+    p.set_defaults(func=cmd_new)
+
     p = sub.add_parser("estimate", help="offline: word/character counts per track")
     p.add_argument("tour", help="tour slug under tours/, e.g. hobart")
     p.add_argument("-v", "--verbose", action="store_true", help="print parsed segments")
     p.add_argument("--draft", metavar="FILE", help="another draft in tours/<tour>/source/ (builds into build/<its name>/)")
     p.set_defaults(func=cmd_estimate)
 
-    p = sub.add_parser("check", help="free: check the draft against docs/script-format.md, and song links with Spotify")
+    p = sub.add_parser("check", help="free: check the draft against the format in docs/process/5-scripts.md, and song links with Spotify")
     p.add_argument("tour", help="tour slug under tours/, e.g. hobart")
     p.add_argument("--draft", metavar="FILE", help="another draft in tours/<tour>/source/ (builds into build/<its name>/)")
     p.add_argument("--offline", action="store_true", help="don't ask Spotify about song links (warns instead)")

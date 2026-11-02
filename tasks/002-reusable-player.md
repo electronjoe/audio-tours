@@ -82,4 +82,7 @@ release overhead for no gain yet. Make the boundary explicit instead:
   unchanged (`tour render hobart stop-1 -n` shows every chunk cached).
 - `docs/script-format.md` now describes tours (`tours/<slug>`, `uv run tour check`,
   `Stop N` labels, a tour example).
-- Deferred: `tour new <slug>`, until 004 and 005 settle the `plan.md` and draft headers.
+- ~~Deferred: `tour new <slug>`, until 004 and 005 settle the `plan.md` and draft headers.~~
+  Built 2026-11-02 with 004's templates: `uv run tour new <slug> --title "..."` writes
+  `tour.toml`, `plan.md`, `source/research.md` and an empty draft from
+  `docs/process/templates/`, and refuses an existing folder or a slug taken under `site/`.

@@ -17,7 +17,8 @@ the whole tour.
 
 ## Balance across the tour
 
-Lay the plan out as a table (stop × category) in `plan.md` and check it:
+Lay the plan out as a table (stop × category) in `plan.md` (its Topics table, from
+[templates/plan.md](templates/plan.md)) and check it:
 
 - Variety: no two anchor stories in a row from the same category (for example two convict
   stories).

@@ -1,6 +1,6 @@
 # 003: Google Maps route from each stop onward
 
-Status: doing (built; needs a check on an Android phone) · Priority: medium · Raised: 2026-11-02 (Hobart road test)
+Status: doing (deployed; needs a check on an Android phone) · Priority: medium · Raised: 2026-11-02 (Hobart road test)
 
 ## Why
 

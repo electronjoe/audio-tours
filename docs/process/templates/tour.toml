@@ -1,0 +1,87 @@
+# Production settings for ${title}, started with `uv run tour new ${slug}` on ${date}.
+# Fill it in stage by stage (docs/process/). This file is committed and public: no family
+# names, ages, home addresses or travel dates.
+
+[tour]
+title = ${title_toml}
+short_name = ${title_toml}   # home-screen label; shorten it if the title is long
+theme_color = "#14532d"
+artist = "Audio Tours"
+year = ${year}
+
+[player]
+mode = "drive"           # "walk" is task 007 and isn't built yet
+lookahead = 2            # how many unplayed stops GPS can trigger (2-stops.md)
+
+[narration]
+model_id = "eleven_v4"
+output_format = "mp3_44100_128"
+
+# The series narrator, the same voice as Hobart's, so this tour needs no custom-voice slot.
+# To use another, design one (`tour design`, paid) and record it here with the date and why it
+# was picked (6-sound.md).
+[voices.narrator]
+name = "Tour-Tasmania-Narrator"
+voice_id = "ShIjYUEv1pABubDlTWxD"
+source = "Voice Design (eleven_ttv_v3), saved 2026-11-02 for Hobart"
+
+# Guests: one [voices.<key>] per `## Cast` entry in the draft (5-scripts.md, 6-sound.md).
+
+[render]
+max_chunk_chars = 1500
+context_chars = 600
+announce_titles = true
+title_label = false      # "The Road That Tried to Sink.", not "Stop One. ..."
+
+[master]
+target_lufs = -16
+true_peak = -1.5
+head_seconds = 0.3
+tail_seconds = 1.5
+bitrate = "128k"
+sting = "chime"          # [sfx.chime] before every stop
+sting_level_db = -6
+sting_gap = 0.4
+
+# Sound effects (6-sound.md). The chime opens every stop; `uv run tour sfx ${slug} chime` makes
+# its 2 takes for about 17 credits. Add an [sfx.<name>] for each cue in the draft's
+# `## Audio notes`.
+[sfx.chime]
+prompt = "A gentle, warm two-note marimba chime, soft and friendly, like an announcement on a family tour bus. Clean, no reverb tail."
+duration = 1.5
+variants = 2
+chosen = 1
+
+# --- Route (1-route.md) ------------------------------------------------------------
+# Each leg is driven through its points in order: start, fixed stops, end. `wait` is the
+# minutes parked at the leg's end. Fill them in, then run `uv run tour route ${slug}`.
+# `end` is where every stop's Navigate link finishes: a public place, never a home address.
+#
+# [route]
+# end = [lat, lon]
+#
+# [route.outbound]
+# points = [[lat, lon], [lat, lon]]
+# wait = 30
+#
+# [route.return]
+# points = [[lat, lon], [lat, lon]]
+
+# --- Stops (2-stops.md) ------------------------------------------------------------
+# Stops play in this order. `stop-N` matches the draft's `## Script: Stop N — <Title>`.
+# Check them with `uv run tour plan-check ${slug}`.
+#
+# [stops.stop-1]
+# lat = 0.0
+# lon = 0.0
+# radius = 800
+# place = "Approaching ..."     # shown on screen
+# strict = true                 # waits for the stop before it (out-and-back roads)
+# nav = [lat, lon]              # where Maps should take you, if not the trigger point
+#
+# [stops.stop-1.song]           # task 006, 6-sound.md
+# title = "..."
+# artist = "..."
+# spotify = "https://open.spotify.com/track/<id>"
+# length = "3:42"
+# why = "One line for the screen: why this song is here."

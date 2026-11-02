@@ -12,4 +12,4 @@ tours/*/cache/
 .DS_Store
 
 # Research notes name the family; keep them out of the public repo.
-tours/*/source/research.txt
+tours/*/source/research.*

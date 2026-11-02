@@ -43,10 +43,10 @@ def retired(tour: config.Tour, track: Track) -> list[str]:
     out = []
     if "voices" in t:
         out.append(f"[tracks.{track.id}.voices] in tour.toml is retired: label the guest's paragraphs "
-                   "('NAME: ...') and list NAME under '## Cast' (docs/script-format.md)")
+                   "('NAME: ...') and list NAME under '## Cast' (docs/process/5-scripts.md)")
     if "beds" in t:
         out.append(f"[[tracks.{track.id}.beds]] in tour.toml is retired: put '[SFX — name, under]' and "
-                   "'[SFX — name, stop]' cues in the script (docs/script-format.md)")
+                   "'[SFX — name, stop]' cues in the script (docs/process/5-scripts.md)")
     return out
 
 

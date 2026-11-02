@@ -58,6 +58,9 @@ class Guard:
             raise SystemExit(
                 f"{label}: {chars:,} chars exceeds --max-chars {self.max_chars:,}; refusing."
             )
+        if self.tour.info.get("test_only"):
+            print(f"note: '{self.tour.slug}' is test-only ([tour] test_only): spend here only to "
+                  "test a pipeline change, never for new content.")
         print(f"{label}: {chars:,} chars to send.")
         if not self.assume_yes and input("Proceed? [y/N] ").strip().lower() != "y":
             raise SystemExit("Cancelled; nothing spent.")

@@ -1,4 +1,8 @@
 # Production settings for the Hobart -> Russell Falls tour (2 November 2026).
+#
+# Test-only since 2026-11-02: Hobart is the regression and validation target (player_drive.py,
+# the master and publish tests). No more paid content here; spend credits on it only to test a
+# pipeline change. `test_only` makes spend.Guard say so before any paid call.
 
 [tour]
 title = "Hobart to Russell Falls"
@@ -6,6 +10,7 @@ short_name = "Russell Falls"   # home-screen label
 theme_color = "#14532d"
 artist = "Audio Tours"
 year = 2026
+test_only = true
 
 [narration]
 model_id = "eleven_v4"
@@ -142,7 +147,9 @@ place = "Leaving New Norfolk towards Hobart (Boyer Mill is across the river)"
 # 9 Mar 2026 (au.rollingstone.com/music/music-features/augie-march-interview-moo-you-bloody-choir-anniversary-tour-92098):
 # "I wrote it when I stayed here for a week after a run of shows. I was still living in Melbourne
 # but starting to get the sense that this was a place I wanted to be." Not marked explicit on Spotify.
-# The spoken song segment in stop 8's script isn't written or rendered yet.
+# Stop 8's script has no spoken song segment, and won't: the tour is test-only, so the song card
+# stays as the player's test case and `tour check` keeps warning. The segment is proven on the
+# next tour (tasks/006).
 [stops.stop-8.song]
 title = "Mt Wellington Reverie"
 artist = "Augie March"

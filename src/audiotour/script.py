@@ -14,8 +14,8 @@ line: ``[SFX — splash]`` plays a one-shot in the gap there, ``[SFX — river,
 under]`` starts a bed under the following speech and ``[SFX — river, stop]``
 fades it out.
 
-The em dash may also be an en dash or a hyphen. ``docs/script-format.md`` is the
-full contract, and ``check`` reports anything that breaks it.
+The em dash may also be an en dash or a hyphen. The format contract in
+``docs/process/5-scripts.md`` is the full contract, and ``check`` reports anything that breaks it.
 """
 
 from __future__ import annotations
@@ -204,7 +204,7 @@ def load_tracks(path: Path) -> list[Track]:
     return parse_tracks(path.read_text(encoding="utf-8"))
 
 
-# --- Checking a draft against docs/script-format.md ---------------------------------
+# --- Checking a draft against docs/process/5-scripts.md -----------------------------
 
 SCRIPT_HEADING = re.compile(r"^##\s+Script\b", re.IGNORECASE)
 NOT_PROSE = re.compile(r"^(?:#|>|\||[-*+]\s|\d{1,2}[.)]\s|-{3,}|_{3,})")

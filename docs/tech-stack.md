@@ -26,14 +26,15 @@ tours/<slug>/                 src/audiotour/ (Python CLI)               site/ (s
 | Tests | `pytest` | Unit tests in `tests/`. |
 
 **Modules:**
-- `cli.py`: the `tour` commands. Free: `check`, `estimate`, `account`, `models`, `voices`, `master`, `combine`, `publish`, `pages`, `ledger`, `route`, `plan-check`. Paid: `render`, `sfx`, `design`, `audition`, `save-voice`.
+- `cli.py`: the `tour` commands. Free: `new`, `check`, `estimate`, `account`, `models`, `voices`, `master`, `combine`, `publish`, `pages`, `ledger`, `route`, `plan-check`. Paid: `render`, `sfx`, `design`, `audition`, `save-voice`.
 - `config.py`: reads `tour.toml`.
-- `script.py`: parses the Markdown working draft into tracks, pauses, cast and sound cues (`docs/script-format.md`).
+- `script.py`: parses the Markdown working draft into tracks, pauses, cast and sound cues (`docs/process/5-scripts.md`, the format contract).
 - `chunks.py`: splits each track into TTS requests.
 - `render.py`: does the paid rendering.
 - `spend.py`: every paid call passes through `spend.Guard`, which caches it by request hash, caps and confirms it, and logs it to `ledger.jsonl`.
 - `master.py`: mixes the final MP3.
 - `publish.py`: writes `site/<slug>/`.
+- `new.py`: `tour new` starts a tour folder from `docs/process/templates/`.
 - `route.py`: `tour route` fetches each leg from OSRM and writes `route.json`; `tour plan-check` checks stop spacing against it offline.
 - `songs.py`: the per-stop song table; `tour check` verifies each Spotify link's title (oEmbed) and length (the track page's `music:duration` tag).
 
