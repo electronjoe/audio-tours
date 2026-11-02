@@ -15,10 +15,21 @@ placed on it and the audio can be budgeted.
 
 ## Steps
 
-1. **Get the drivable path.** Use OSRM (`router.project-osrm.org`, `driving` profile) for each
-   leg, outbound and return, with the fixed stops as via points. Save the simplified polylines
-   to `tours/<slug>/route.json` as `{"outbound": [[lat, lon], ...], "return": [...]}`. Hobart
-   used about 210 points a leg, roughly 300 m apart.
+1. **Get the drivable path.** List each leg's points in `tour.toml` (start, fixed stops as via
+   points, end), with `wait` for the minutes parked at the leg's end:
+   ```toml
+   [route.outbound]
+   points = [[-42.88199, 147.33654], [-42.68181, 146.71655]]
+   wait = 30
+   [route.return]
+   points = [[-42.68181, 146.71655], [-42.75321, 146.97], [-42.88199, 147.33654]]
+   ```
+   Then `uv run tour route <slug>` asks OSRM (`router.project-osrm.org`, `driving` profile) for
+   each leg, caches the answers in `cache/osrm/`, keeps one point every 300 m along the road,
+   writes `route.json` (`{"outbound": [[lat, lon], ...], "return": [...], "seconds": {...}}`,
+   where `seconds` is OSRM's driving time at each point) and prints the leg table. `--out FILE`
+   writes elsewhere and compares with the current `route.json`. The player draws and simulates
+   only `outbound` and `return`.
 2. **Check it against how people really drive it.** Compare with Google Maps. If they differ,
    follow the route the traveller will actually take: they will navigate with Google.
 3. **Time the legs.** Driving minutes per leg, plus dwell time at each fixed stop. The total
@@ -33,6 +44,9 @@ placed on it and the audio can be budgeted.
 ## Output
 
 - `route.json`.
+- `[route] end = [lat, lon]` in `tour.toml`: where the trip finishes, usually the last point
+  of the return leg. The stop cards' Navigate from here links end there (task 003). Use a
+  public place, such as the town centre, never a home address.
 - A leg table in `tours/<slug>/plan.md`: leg, distance, minutes, quiet stretches, and the
   listening minutes available.
 

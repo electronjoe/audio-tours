@@ -67,8 +67,22 @@ bed's measured level under speech and in the gaps, relative to the voice.
   here, one gripping fact, and the button cue.
 - **Link.** Use `https://open.spotify.com/track/<id>`. On Android it opens the Spotify app at
   that track. Find the track on open.spotify.com (search). Never write an ID from memory.
-- **Verify.** `curl -s "https://open.spotify.com/oembed?url=<link>"` should return the right
-  title. Choose the original recording, not a cover or a karaoke version, unless the cover is
-  the point.
-- **Record** the song in `tour.toml` as `[stops.<id>.song]`: title, artist, spotify, why
-  (one line for the screen).
+- **Record** the song in `tour.toml`:
+  ```toml
+  [stops.stop-3.song]
+  title = "..."
+  artist = "..."
+  spotify = "https://open.spotify.com/track/<id>"
+  length = "3:42"   # m:ss, as Spotify shows it
+  why = "One line for the screen: why this song is here."
+  ```
+  The player shows `title`, `artist` and `why` after the stop ends, and uses `length` to decide
+  whether there is room to play the song before the next stop (task 006).
+- **Verify** with `uv run tour check <tour>`. It asks Spotify (free, no account) for each link's
+  title (oEmbed) and length (the track page's `music:duration` tag), and fails if the title
+  isn't `title` or the length is more than 2 s off `length`; it prints the right length. A
+  version note on Spotify's title ("- Remastered 2011", "(Live)") is a warning. It also warns
+  if Spotify credits another artist, or if the stop's script doesn't name the song and the
+  artist. Answers are cached in `tours/<slug>/cache/spotify/`; offline (or with `--offline`)
+  the links aren't verified and check warns. Choose the original recording, not a cover or a
+  karaoke version, unless the cover is the point.

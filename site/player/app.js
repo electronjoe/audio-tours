@@ -24,6 +24,8 @@ const SPEED_HOLD = 10000; // ms after a gap in which no speed is derived from po
 const STALE_AFTER = 8 * 3600 * 1000; // ms; older saved progress asks "from the beginning or continue?"
 const LOG_SIZE = 30; // event-log entries kept
 const NEAR = 2000; // metres; "Play now" is the green button only this close to the zone
+const SONG_MARGIN = 60; // s; offer a song only if the next trigger is this much further off than its length (tasks/006)
+const SONG_MIN_SPEED = 8; // m/s; the room check never assumes slower, so a stop at the lights opens no window
 const $ = (sel) => document.querySelector(sel);
 
 const S = {
@@ -36,6 +38,7 @@ const S = {
   stale: false, // saved progress older than STALE_AFTER: offer "from the beginning" or "continue"
   resume: [], // stops that were playing or queued when the page was last closed: offered, not played
   missed: [], // stops passed while away, offered in the Now card until the next stop starts
+  song: null, // the stop whose song the Now card shows, from its end until the next stop starts (tasks/006)
   why: {}, // stop id -> {cause, d, acc}: why it was queued, for the event log
   fix: null, // the latest fix, shown: {lat, lon, accuracy, speed, time, coarse}
   last: null, // the latest fix used for triggering (the start of a catch-up segment)
@@ -51,6 +54,7 @@ const S = {
 const audio = new Audio();
 audio.preload = "auto";
 let objectURL = null;
+let loaded = null; // the stop whose audio is in the element (null: Start's unlock clip)
 
 // --- persistence --------------------------------------------------------------
 
@@ -104,6 +108,34 @@ function metres(a, b) {
 const km = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
 const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 const mapsLink = (s) => `https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lon}`;
+
+// --- navigate from here (tasks/003) -------------------------------------------------
+// Self-contained: tests/test_navigate.py runs this block under Node.
+
+const NAV_MAX = 10; // points: 9 waypoints plus the destination, what the Android Maps app takes
+
+/** The Google Maps directions link from stop `i` onward: that stop and every later one (its
+ *  `nav` point, else its trigger point; `nav: false` leaves it out), then `route.end`. A point
+ *  equal to the one before it is dropped; repeats further apart stay (they make an out-and-back).
+ *  No origin, so Maps starts from where the phone is. Returns {url, label, points} or null. */
+function navLink(tour, i) {
+  const pts = [];
+  const add = (p) => {
+    if (p && (!pts.length || String(pts[pts.length - 1]) !== String(p))) pts.push(p);
+  };
+  for (const s of tour.stops.slice(i)) add(s.nav === false ? null : s.nav || [s.lat, s.lon]);
+  add(tour.route && tour.route.end);
+  if (!pts.length) return null;
+  const cut = pts.length > NAV_MAX;
+  const points = pts.slice(0, NAV_MAX);
+  const enc = (p) => encodeURIComponent(p.join(","));
+  let url = `https://www.google.com/maps/dir/?api=1&destination=${enc(points[points.length - 1])}`;
+  if (points.length > 1) url += `&waypoints=${points.slice(0, -1).map(enc).join("%7C")}`;
+  url += `&travelmode=${tour.mode === "walk" ? "walking" : "driving"}`;
+  return { url, label: cut ? `Navigate (next ${NAV_MAX} stops)` : "Navigate from here", points };
+}
+
+// --- end navigate from here ---------------------------------------------------------
 
 // --- sequence and queue -------------------------------------------------------
 
@@ -196,6 +228,7 @@ function playNext() {
 
 async function play(s) {
   settleOffers(s);
+  S.song = null;
   S.current = s;
   logEvent("play", s, S.why[s.id] || { cause: "manual" });
   render();
@@ -203,6 +236,7 @@ async function play(s) {
     if (objectURL) URL.revokeObjectURL(objectURL);
     objectURL = URL.createObjectURL(await audioBlob(s));
     audio.src = objectURL;
+    loaded = s;
     await audio.play();
   } catch (err) {
     // Usually autoplay being refused, or audio that isn't downloaded while offline.
@@ -224,7 +258,11 @@ async function play(s) {
 }
 
 audio.addEventListener("ended", () => {
+  // Only the playing stop's own audio ending counts. Start's silent unlock clip ends at once,
+  // and a fix in a zone right after Start can begin a stop while its audio is still loading.
+  if (S.current && loaded !== S.current) return;
   if (S.current) S.status[S.current.id] = "played";
+  offerSong(S.current);
   save();
   playNext();
 });
@@ -447,6 +485,7 @@ function start() {
   // replace a stop that is already playing (Resume or Play now can call start()).
   if (!S.current) {
     audio.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+    loaded = null;
     audio.play().catch(() => {});
   }
   keepAwake();
@@ -491,6 +530,72 @@ function simulate(factor) {
   render();
 }
 
+// --- songs (tasks/006) ---------------------------------------------------------------
+// When a stop with a song ends, the Now card shows the song until the next stop starts. While
+// Spotify is in front the page gets no GPS, so ▶ Play on Spotify is offered only if the next
+// trigger is more than the song's length plus SONG_MARGIN away; otherwise "Save for later".
+// The song stays in the stop's expanded card either way.
+
+const esc = (t) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+/** The speed the room check assumes: the higher of the latest fix's and the median of the last
+ *  2 minutes, but at least SONG_MIN_SPEED. */
+function songSpeed() {
+  const now = Date.now();
+  const v = S.track.filter((f) => now - f.time <= 120000 && f.speed != null).map((f) => f.speed).sort((a, b) => a - b);
+  const median = v.length ? (v[(v.length - 1) >> 1] + v[v.length >> 1]) / 2 : 0;
+  return Math.max(S.fix?.speed ?? 0, median, SONG_MIN_SPEED);
+}
+
+/** Seconds until GPS could trigger the next stop: straight-line distance to the edge of the
+ *  nearest armed zone over songSpeed(). Never longer than by road, so it errs toward "no room".
+ *  0 without a usable fix; Infinity when no stop is armed (the end of the tour). */
+function secondsToTrigger() {
+  const a = armed();
+  if (!a.length) return Infinity;
+  if (!S.fix || S.fix.coarse || S.away) return 0;
+  const d = Math.min(...a.map((i) => Math.max(0, metres(S.fix, stops()[i]) - stops()[i].radius)));
+  return d / songSpeed();
+}
+
+const songRoom = (song) => secondsToTrigger() > song.length + SONG_MARGIN;
+
+/** Stop s has just ended: show its song, if it has one. */
+function offerSong(s) {
+  if (!s?.song) return;
+  S.song = s;
+  const secs = secondsToTrigger();
+  logEvent("song", s, { room: songRoom(s.song), secs: Number.isFinite(secs) ? Math.round(secs) : null });
+}
+
+function songCard() {
+  const s = S.song, g = s?.song;
+  if (!g) return "";
+  const action = songRoom(g)
+    ? `<a class="song-play button primary wide" href="${esc(g.spotify)}" target="_blank" rel="noopener" data-id="${s.id}">▶ Play on Spotify</a>
+      <div class="help">Come back to the tour when the song ends, so the next stop can play.</div>`
+    : `<div class="song-save"><b>Save for later</b>: the next stop comes before the song would end. It stays in stop ${s.n}'s card below.</div>`;
+  return `<div class="offer song"><div class="label">Song for this stretch</div>
+    <div class="title">${esc(g.title)}</div>
+    <div class="sub">${esc(g.artist)} · ${mmss(g.length)}</div>
+    <p class="why">${esc(g.why)}</p>${action}</div>`;
+}
+
+/** The song in a stop's expanded card, always playable from there. */
+function songLine(s) {
+  const g = s.song;
+  if (!g) return "";
+  return `<p class="song-line">♪ <b>${esc(g.title)}</b>, ${esc(g.artist)} (${mmss(g.length)}). ${esc(g.why)}
+          <a class="song-link" href="${esc(g.spotify)}" target="_blank" rel="noopener" data-id="${s.id}">▶ Play on Spotify</a></p>`;
+}
+
+function wireSongs() {
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest("a.song-play, a.song-link");
+    if (a) logEvent("song-play", byId(a.dataset.id));
+  });
+}
+
 // --- rendering --------------------------------------------------------------------
 
 function toast(msg) {
@@ -522,6 +627,7 @@ function renderOffers() {
     html += `<div class="offer"><div class="label">Passed while you were away</div>
       <button class="offer-play wide" data-id="${s.id}">${S.current ? "Queue next" : "▶ Play"}: stop ${s.n}. ${s.title}</button></div>`;
   }
+  html += songCard();
   // renderNow runs every second: rewrite only on a change, so the buttons stay tappable.
   if (renderOffers.html !== html) $("#now-offers").innerHTML = renderOffers.html = html;
 }
@@ -592,6 +698,7 @@ function renderStops() {
   stops().forEach((s, i) => {
     const state = stateOf(s, i);
     const d = S.fix ? km(metres(S.fix, s)) : "";
+    const nav = navLink(S.tour, i);
     const el = document.createElement("details");
     el.className = `stop ${state}`;
     el.dataset.id = s.id;
@@ -605,9 +712,11 @@ function renderStops() {
       </summary>
       <div class="more">
         <p>${s.place}. Triggers within ${km(s.radius)}. ${s.duration ? mmss(s.duration) + " long." : "No audio yet."}</p>
+        ${songLine(s)}
         <p class="actions">
           <button class="here primary" data-i="${i}">${state === "playing" ? "Restart" : "▶ Start here"}</button>
           <button class="queue" data-i="${i}">Queue next</button>
+          ${nav ? `<a class="nav" href="${nav.url}" target="_blank" rel="noopener">${nav.label}</a>` : ""}
           <a href="${mapsLink(s)}" target="_blank" rel="noopener">Open trigger point in Google Maps</a>
           ${S.status[s.id] ? `<button class="unplay" data-i="${i}">Mark unplayed</button>` : ""}
         </p>
@@ -682,6 +791,8 @@ function describe(e) {
     case "back": return `Back after ${mmss(e.gap)} without GPS: jumped ${km(e.jump)}, ±${e.acc} m`;
     case "start": return "Tour started (GPS armed, nothing played)";
     case "reset": return "Progress reset";
+    case "song": return `${stop}ended: song offered with ${e.room ? "▶ Play on Spotify" : "Save for later"} (${e.secs == null ? "no stop ahead" : `~${mmss(e.secs)} to the next trigger`})`;
+    case "song-play": return `${stop}song opened in Spotify`;
     default: return `${stop}${e.ev}`;
   }
 }
@@ -754,6 +865,7 @@ async function main() {
     S.queue = [];
     S.resume = [];
     S.missed = [];
+    S.song = null;
     audio.pause();
     S.current = null;
     logEvent("reset");
@@ -782,6 +894,7 @@ async function main() {
       simulate(Number(new URLSearchParams(location.search).get("sim")) || 20);
     };
   }
+  wireSongs();
   setInterval(renderNow, 1000);
   window.__tour = { S, onFix, trigger, startHere, skip, audio, save }; // for tests
 }

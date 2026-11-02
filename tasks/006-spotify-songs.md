@@ -1,6 +1,6 @@
 # 006: Song moments with Spotify links
 
-Status: doing (background GPS measured; player rules settled; catch-up on return built) · Priority: medium · Raised: 2026-11-02 (Hobart road test)
+Status: doing (built: song table, `tour check` link and length check, publish, Now card with the room rule; needs songs in a tour and a phone test) · Priority: medium · Raised: 2026-11-02 (Hobart road test)
 
 ## Why
 
@@ -104,7 +104,8 @@ minutes.
     plus 20 s of buffer for speed changes. The deadline is the zone's edge, so arriving a little
     late still triggers the stop inside the zone. The catch-up below covers worse cases.
   - *Song length* comes from a `length = "3:42"` field in the song table. oEmbed doesn't
-    return the duration, so the author enters it (see Open questions).
+    return the duration, but the track page does, and `tour check` verifies `length` against
+    it (see Open questions).
   - *Content side* (`docs/process/2-stops.md`): place a song stop only where the road time to
     the next trigger at the planning speed covers the stop's audio, the song segment, the song
     and the 60 s margin. The player check is then only a guard for slow traffic or a fast
@@ -133,27 +134,80 @@ minutes.
     median speed the song button needs.
 - Optional: a "Drive soundtrack" list under More with every song in the tour.
 
+### As built (2 Nov 2026)
+
+- **Song table and check** (`src/audiotour/songs.py`). `[stops.<id>.song]` takes exactly
+  `title`, `artist`, `spotify`, `length` (`"m:ss"`, or whole seconds) and `why`; missing or
+  unknown fields, a link that isn't a track and an unreadable length are errors.
+  `uv run tour check <tour>` then asks Spotify about each link: the oEmbed title must match
+  `title` (case, accents, punctuation and `&`/"and" don't count; a version note such as
+  "- Remastered 2011" or "(Live)" is a warning), and the track page's `music:duration` must be
+  within 2 s of `length` (an error that prints the right value). It warns if Spotify credits
+  another artist (`music:musician_description`) or if the stop's script doesn't name the title
+  and the artist. Offline, or with `--offline`, each link gets a warning instead and check
+  doesn't fail. Answers are cached in `tours/<slug>/cache/spotify/<id>.json` (gitignored), so
+  only the first check of a link goes online. Unit tests (`tests/test_songs.py`) use responses
+  recorded once in `tests/fixtures/spotify/`.
+- **`length` stays hand-entered**, though check could read it: `tour.toml` is hand-edited
+  with comments, which a TOML rewrite would lose, and stop planning should be able to read
+  `length` offline. Check verifies it and prints the right value to paste instead.
+- **Publish** copies the song into the stop in `tour.json` (`docs/tour-json.md`), with the
+  plain track link and `length` in seconds. It refuses a song table check would reject offline.
+- **Player** (`site/player/app.js`, "songs" section). When a stop with a song ends (its audio
+  `ended`, not a skip), `S.song` holds it and the Now card shows the title, artist, length and
+  `why`. Below them is **▶ Play on Spotify** (a link, opening in a new tab, so a phone without
+  the Spotify app doesn't lose the tour page) when `secondsToTrigger() > length + 60`, and
+  otherwise "Save for later: the next stop comes before the song would end. It stays in stop
+  N's card below." The check is rerun on every fix and every second, so the button can come and
+  go as the speed or distance changes. Without a usable fix (none, coarse, or settling after a
+  gap) there is no room; with no stop left armed there is always room. Any stop starting clears
+  the card, as does Reset. Every stop with a song shows it in its expanded card, with its own
+  Play link, whatever the room. The event log records each offer (`song`, with the room
+  decision and the estimate) and each tap (`song-play`). The card isn't saved across a reload;
+  the song is still in the stop's card.
+- `tests/player_drive.py` serves a fixture copy of `tour.json` with a song on stop 1 (the
+  committed tour has none). It checks that there is no card while the stop plays and that the
+  song is in its expanded card; after the stop ends the card shows the song with
+  ▶ Play on Spotify (12 km to the next zone at 10 m/s); at 50 m/s, and 2 km from the next zone,
+  it says Save for later; back where there is room, Play returns; and the card clears when
+  stop 2 starts.
+- Fixed on the way: the Pause/Skip row stayed on screen after a stop ended, because
+  `.controls { display: flex }` overrode its `hidden` attribute. And a stop that GPS
+  triggered within milliseconds of Start was marked played unheard: the silent clip Start plays
+  to unlock audio ended while the stop's audio was still loading, and the `ended` handler took
+  that as the stop ending. Now only the playing stop's own audio ending counts (`loaded`).
+  `song_check` in the player test caught it (2 of 5 runs failed before the fix, 10 of 10 pass
+  after).
+- Not built: the optional "Drive soundtrack" list.
+
 ## Acceptance
 
 - [ ] On an Android phone, the button opens Spotify at the right song, and coming back to the
       tab resumes GPS triggering.
 - [x] Measured whether GPS keeps working while Spotify plays or the screen is locked: it
       doesn't, even with audio playing (3 Nov 2026, above).
-- [ ] The button shows only when `time to next trigger > song length + 60 s`; otherwise "Save
-      for later".
+- [x] The button shows only when `time to next trigger > song length + 60 s`; otherwise "Save
+      for later" (`tests/player_drive.py`, Song).
 - [x] `tests/player_drive.py` simulates a hidden gap whose jump crosses a whole stop zone: that
       stop is offered as "Passed while you were away" and the next one still triggers.
-- [ ] `tour check` rejects a song link whose oEmbed title doesn't match `title`.
+- [x] `tour check` rejects a song link whose oEmbed title doesn't match `title`
+      (`tests/test_songs.py`).
 - [ ] A stop with a song has a spoken song segment that names the song and the artist and says
-      why it is there.
-- [ ] `tests/player_drive.py` checks that the song card appears after the stop ends and clears
+      why it is there. (Content: no tour has a song yet. `tour check` warns when a song stop's
+      script doesn't name the song and the artist.)
+- [x] `tests/player_drive.py` checks that the song card appears after the stop ends and clears
       when the next stop starts.
 
 ## Open questions
 
-- **Song length:** check whether the track page (`open.spotify.com/track/<id>`) carries a
-  `music:duration` meta tag that `tour check` can read without an account. If not, the author
-  enters `length` by hand.
+- ~~**Song length:** check whether the track page (`open.spotify.com/track/<id>`) carries a
+  `music:duration` meta tag that `tour check` can read without an account.~~ **Answered 2 Nov
+  2026: yes.** A plain GET of the track page, with no account or cookies, returns
+  `<meta name="music:duration" content="214"/>` (seconds) and
+  `<meta name="music:musician_description" content="Rick Astley"/>`, next to `og:title` and
+  `og:type = music.song`. The page is about 280 kB. It's unofficial and could change, so check
+  treats a page without the tag as a warning ("check the length by hand"), not an error. The
+  author still enters `length` (see As built), and check verifies it.
 - **Keep the page in front instead:** the Spotify embed player
   (`open.spotify.com/embed/track/<id>`) inside the tour page would keep GPS running. Without a
   Spotify login in Chrome it plays only a 30 s preview, so it would be a fallback, not the main

@@ -21,7 +21,9 @@ wider than you need. Research (3-research.md) decides which ones carry a story.
 - **Spacing.** Allow the story's length plus about a minute of quiet between stops. At 80 km/h,
   a 3-minute stop needs about 4–5 km of road. A stop with a song segment (006) needs another
   30–60 seconds of road, and the song itself plays outside the tour, so allow its length too if
-  the next trigger shouldn't fire while Spotify has the screen.
+  the next trigger shouldn't fire while Spotify has the screen. The player offers
+  **▶ Play on Spotify** only if the next trigger is more than the song's length plus 60 s
+  away at the current speed (at least 8 m/s), and otherwise says "Save for later".
 - **Avoid quiet stretches** (1-route.md, step 4).
 - **Out-and-back roads.** Stops play in sequence, and only the next two unplayed stops are
   armed (`lookahead`). A return-leg stop at the same place as an outbound one stays silent on
@@ -40,7 +42,21 @@ radius = 1000
 place = "Approaching Bushy Park and the hop fields"   # shown on screen
 # strict = true          # waits for the stop before it
 # nav = [lat, lon]       # where Maps should take you, if not the trigger (task 003)
+# nav = false            # or: a drive-by stop that isn't a Maps waypoint
 ```
+
+Each stop card's **Navigate from here** link routes through this stop and every later one to
+`[route] end` (1-route.md). Give a stop `nav` when the place you would actually drive to,
+such as a car park, isn't its trigger point. Trigger points sit on the route already, so
+Maps passes a drive-by stop's point anyway; `nav = false` only spares the arrival prompt.
+
+Then run `uv run tour plan-check <slug>` (offline). It finds each trigger on `route.json` in
+sequence and checks that it is within 100 m of the route, that the road time to the next
+trigger (OSRM's, plus any `wait`) covers the stop's audio, and for a song stop the song's
+`length` and a 60 s margin too, that radii are in the ranges above, and that a stop whose zone
+is on the road to an earlier stop while it is armed has `strict = true`. Audio lengths come
+from `build/`, else the published `tour.json`, else an estimate from the draft. It exits 1 on
+errors.
 
 Then add a row per stop to `plan.md`: stop, place, direction (outbound, return or parked),
 budget in seconds, and the minutes of road until the next trigger.
