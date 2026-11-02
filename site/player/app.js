@@ -105,6 +105,34 @@ const km = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toF
 const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 const mapsLink = (s) => `https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lon}`;
 
+// --- navigate from here (tasks/003) -------------------------------------------------
+// Self-contained: tests/test_navigate.py runs this block under Node.
+
+const NAV_MAX = 10; // points: 9 waypoints plus the destination, what the Android Maps app takes
+
+/** The Google Maps directions link from stop `i` onward: that stop and every later one (its
+ *  `nav` point, else its trigger point; `nav: false` leaves it out), then `route.end`. A point
+ *  equal to the one before it is dropped; repeats further apart stay (they make an out-and-back).
+ *  No origin, so Maps starts from where the phone is. Returns {url, label, points} or null. */
+function navLink(tour, i) {
+  const pts = [];
+  const add = (p) => {
+    if (p && (!pts.length || String(pts[pts.length - 1]) !== String(p))) pts.push(p);
+  };
+  for (const s of tour.stops.slice(i)) add(s.nav === false ? null : s.nav || [s.lat, s.lon]);
+  add(tour.route && tour.route.end);
+  if (!pts.length) return null;
+  const cut = pts.length > NAV_MAX;
+  const points = pts.slice(0, NAV_MAX);
+  const enc = (p) => encodeURIComponent(p.join(","));
+  let url = `https://www.google.com/maps/dir/?api=1&destination=${enc(points[points.length - 1])}`;
+  if (points.length > 1) url += `&waypoints=${points.slice(0, -1).map(enc).join("%7C")}`;
+  url += `&travelmode=${tour.mode === "walk" ? "walking" : "driving"}`;
+  return { url, label: cut ? `Navigate (next ${NAV_MAX} stops)` : "Navigate from here", points };
+}
+
+// --- end navigate from here ---------------------------------------------------------
+
 // --- sequence and queue -------------------------------------------------------
 
 const stops = () => S.tour.stops;
@@ -592,6 +620,7 @@ function renderStops() {
   stops().forEach((s, i) => {
     const state = stateOf(s, i);
     const d = S.fix ? km(metres(S.fix, s)) : "";
+    const nav = navLink(S.tour, i);
     const el = document.createElement("details");
     el.className = `stop ${state}`;
     el.dataset.id = s.id;
@@ -608,6 +637,7 @@ function renderStops() {
         <p class="actions">
           <button class="here primary" data-i="${i}">${state === "playing" ? "Restart" : "▶ Start here"}</button>
           <button class="queue" data-i="${i}">Queue next</button>
+          ${nav ? `<a class="nav" href="${nav.url}" target="_blank" rel="noopener">${nav.label}</a>` : ""}
           <a href="${mapsLink(s)}" target="_blank" rel="noopener">Open trigger point in Google Maps</a>
           ${S.status[s.id] ? `<button class="unplay" data-i="${i}">Mark unplayed</button>` : ""}
         </p>

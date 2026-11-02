@@ -40,7 +40,13 @@ radius = 1000
 place = "Approaching Bushy Park and the hop fields"   # shown on screen
 # strict = true          # waits for the stop before it
 # nav = [lat, lon]       # where Maps should take you, if not the trigger (task 003)
+# nav = false            # or: a drive-by stop that isn't a Maps waypoint
 ```
+
+Each stop card's **Navigate from here** link routes through this stop and every later one to
+`[route] end` (1-route.md). Give a stop `nav` when the place you would actually drive to,
+such as a car park, isn't its trigger point. Trigger points sit on the route already, so
+Maps passes a drive-by stop's point anyway; `nav = false` only spares the arrival prompt.
 
 Then add a row per stop to `plan.md`: stop, place, direction (outbound, return or parked),
 budget in seconds, and the minutes of road until the next trigger.

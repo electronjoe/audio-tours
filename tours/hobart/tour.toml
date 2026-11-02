@@ -66,6 +66,12 @@ prompt = "A small animal slipping into calm river water, one soft splash, close,
 duration = 2
 level_db = -8
 
+# Where every stop's "Navigate from here" link finishes (task 003): Hobart city centre, the
+# end of route.json's return leg. A stop can add `nav = [lat, lon]` (where to drive to, if not
+# its trigger point) or `nav = false` (a drive-by stop that shouldn't be a Maps waypoint).
+[route]
+end = [-42.88199, 147.33654]
+
 # --- Stops -----------------------------------------------------------------------
 # Stops play in this order. Trigger points sit on the OSRM driving route a few minutes
 # before each landmark (route.json). Only the next stop in sequence, or the one after it,

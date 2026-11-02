@@ -1,6 +1,6 @@
 # 003: Google Maps route from each stop onward
 
-Status: todo · Priority: medium · Raised: 2026-11-02 (Hobart road test)
+Status: doing (built; needs a check on an Android phone) · Priority: medium · Raised: 2026-11-02 (Hobart road test)
 
 ## Why
 
@@ -45,10 +45,34 @@ https://www.google.com/maps/dir/?api=1
 ## Acceptance
 
 - [ ] Each stop card has Navigate from here. On an Android phone it opens the Google Maps app
-      with the remaining stops in order, starting at the current location.
-- [ ] From stop 6 on the Hobart tour, the route goes back through New Norfolk to Hobart, not
-      somewhere else.
-- [ ] A tour with more than 10 remaining points produces a valid, truncated link.
+      with the remaining stops in order, starting at the current location. (Every card has the
+      link, checked by `tests/player_drive.py`; the phone check is still to do.)
+- [x] From stop 6 on the Hobart tour, the route goes back through New Norfolk to Hobart, not
+      somewhere else. (Waypoints stop 6, stop 7 at Bushy Park, stop 8 leaving New Norfolk, then
+      Hobart: `tests/player_drive.py` and `tests/test_navigate.py`. Confirm on the phone that
+      Maps draws it along the Lyell Highway.)
+- [x] A tour with more than 10 remaining points produces a valid, truncated link.
+      (`tests/test_navigate.py::test_more_than_ten_points_are_cut_to_ten`.)
+
+## As built (2026-11-02)
+
+- `tour.toml`: optional per-stop `nav = [lat, lon]` or `nav = false`, and `[route] end`.
+  Publish checks each is a `[lat, lon]` pair in range (or `false`) and copies them into
+  `tour.json` as stop `nav` and `route.end` (`nav_field`, `route_end` in `publish.py`;
+  `docs/tour-json.md`). Hobart's `end` is the last point of the return leg in `route.json`,
+  the city centre. No Hobart stop has `nav` yet: stop 5's trigger is already the visitor
+  centre car park, and the arrival prompts need a road test before any stop is set to `false`.
+- Player: `navLink(tour, i)` in `site/player/app.js`, in a self-contained block between marker
+  comments. The link sits on the stop card before "Open trigger point in Google Maps". Points
+  and the `%7C`-joined waypoints are URL-encoded; `travelmode` is `walking` for a walk tour.
+  With no `route.end` the last point is the destination; with no points at all (every
+  remaining stop `nav = false` and no end) the card has no link.
+- Tests: `tests/test_navigate.py` runs the player's `navLink` block under Node (skipped if
+  `node` is missing) for the order, `nav`, adjacent-repeat, cut-to-10 and Hobart stop 6 cases,
+  and checks publish's `nav`/`end` handling. `tests/player_drive.py` checks the rendered links.
+- Not done: a whole-route link at the top of the page (stop 1's card is that link).
+- iPhone: Google says a mobile browser takes about 3 waypoints. Hobart's stop 1 link has 8, so
+  on an iPhone without the Google Maps app, Maps in Safari may drop some. Untested.
 
 ## Open questions
 

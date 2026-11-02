@@ -10,7 +10,7 @@ Statuses: `todo`, `doing`, `blocked` (say on what), `done`.
 | --- | --- | --- | --- |
 | 001 | [Start tour waits for GPS; never auto-plays](001-start-waits-for-gps.md) | done | Hobart road test |
 | 002 | [Reusable player, separate from per-tour content](002-reusable-player.md) | done | Hobart road test |
-| 003 | [Google Maps route from each stop onward](003-maps-route-from-stop.md) | todo | Hobart road test |
+| 003 | [Google Maps route from each stop onward](003-maps-route-from-stop.md) | doing (built; needs an Android phone check) | Hobart road test |
 | 004 | [Process and rule documents](004-process-docs.md) | doing | Hobart road test |
 | 005 | [Script format v2: cast, guest voices, inline sound effects](005-script-format-v2.md) | doing (built, in Hobart stop 6; needs a listen) | Hobart road test |
 | 006 | [Song moments with Spotify links](006-spotify-songs.md) | doing | Hobart road test |
