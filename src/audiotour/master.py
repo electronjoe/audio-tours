@@ -35,7 +35,7 @@ from .script import Cue, Pause, Text, load_tracks
 LEAD = 0.15  # seconds kept before the first spoken character of a chunk
 TAIL = 0.5  # seconds kept after the last one (breath and decay)
 FORMAT = "aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo"
-SPEAKER_GAP = 0.35  # speech to speech at a change of speaker
+SPEAKER_GAP = 0.7  # speech to speech at a change of speaker
 SFX_GAP = 0.5  # speech to a one-shot, and the one-shot to the next speech
 SFX_LEVEL_DB = -9.0  # an effect's level relative to the voice (a bed's, in the gaps)
 DUCK_DB = -9.0  # a bed's extra reduction under speech

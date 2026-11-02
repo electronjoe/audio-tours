@@ -32,7 +32,7 @@ so the prompt can't drift from the parser.
   the label stripped. Unlabelled paragraphs, and `NARRATOR:` ones, are the narrator's. Each
   change of speaker starts a new TTS chunk, with the neighbouring text of both speakers sent as
   context, and the master joins speakers with a short gap (`[master] speaker_gap`, default
-  0.35 s) instead of the narrator's paragraph gap.
+  0.7 s) instead of the narrator's paragraph gap.
 - **One-shot effects.** `[SFX — splash]` plays `[sfx.splash]` in the gap where it stands.
   The gap grows to `sfx_gap` (default 0.5 s), the effect, then `sfx_gap` again. A cue between
   two paragraphs of one chunk cuts the chunk's audio at the paragraph break. It doesn't split the

@@ -39,7 +39,7 @@ chosen = 1
 ```
 
 Optional per bed: `fade_in` (default 1.5 s, before the next speech) and `fade_out` (default
-3 s, after the last speech). In `[master]`, `speaker_gap` (0.35 s) is the hand-off between
+3 s, after the last speech). In `[master]`, `speaker_gap` (0.7 s) is the hand-off between
 speakers and `sfx_gap` (0.5 s) the space either side of a one-shot. `tour master` prints each
 bed's measured level under speech and in the gaps, relative to the voice.
 

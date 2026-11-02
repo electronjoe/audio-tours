@@ -195,7 +195,8 @@ Method A, per-speaker TTS, in the real pipeline. `lab/` is gone: the excerpt is 
 - **Master** (`master.py`). The master walks the script's segments over the rendered chunks.
   A one-shot cue cuts its chunk at the paragraph break, with no re-render, and the gap becomes
   `sfx_gap` (0.5 s), the effect, then `sfx_gap`. A change of speaker gets `speaker_gap`
-  (0.35 s). Beds fade in 1.5 s before the next speech and out over 3 s from the last speech
+  (0.7 s, chosen on 2 Nov 2026 after a listen, between the 0.35 s and the
+  reference's 1.0 s). Beds fade in 1.5 s before the next speech and out over 3 s from the last speech
   before `stop`. They are ducked by a sidechain compressor keyed on the voice, with its
   threshold set from `duck_db` (ratio 4, the lab's attack and release). `level_db` and
   `duck_db` default to −9. Hobart's river uses `duck_db = -13`, which at this voice level is
