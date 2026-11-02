@@ -6,9 +6,13 @@ hidden behind another app or the screen is locked, and does a playing audio elem
 
 It uses the same `watchPosition` options and 5 s retry as `site/player/app.js`. It logs every
 fix (accuracy, speed, fix age, gap since the previous fix), every GPS error, visibility changes,
-`freeze`/`resume`/`pagehide`, audio-loop state, wake-lock changes, timer stalls and battery level
-at each phase change. The log is stored in localStorage. The screen never shows coordinates,
-and the shared log gives distances from the first fix unless you tick "Include raw coordinates".
+`freeze`/`resume`/`pagehide`, audio-loop state, wake-lock changes, timer stalls and the battery
+level (at each phase change and whenever it changes). The log is stored in localStorage. The
+screen never shows coordinates, and the shared log gives distances from the first fix unless you
+tick "Include raw coordinates".
+
+Results from the first run (3 Nov 2026) are in tasks 006 and 007: no fixes at all while the page
+is hidden, even with audio playing.
 
 The page isn't linked from the site index. It needs HTTPS for geolocation, so open it at
 `<pages-url>/lab/gps-probe/` or through a tunnel.

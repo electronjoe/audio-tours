@@ -1,6 +1,6 @@
 # 006: Song moments with Spotify links
 
-Status: todo · Priority: medium · Raised: 2026-11-02 (Hobart road test)
+Status: todo (background GPS measured; player rules settled) · Priority: medium · Raised: 2026-11-02 (Hobart road test)
 
 ## Why
 
@@ -21,6 +21,41 @@ Status: todo · Priority: medium · Raised: 2026-11-02 (Hobart road test)
   is optional.
 - We never embed or play copyrighted music in our audio. We only link to it.
 
+## Background GPS (measured 3 Nov 2026)
+
+Measured with `site/lab/gps-probe/` (same `watchPosition` options as the player) on Android
+Chrome 156, as a passenger at about 10 m/s, phone charging. Each hidden span lasted 1.3–2.3
+minutes.
+
+| Phase | Hidden | Fixes while hidden | Longest gap | First fix after return |
+| --- | --- | --- | --- | --- |
+| Page in front, screen on | 0 | (1 fix/s, 4–8 m) | 1 s | n/a |
+| Spotify playing, page behind it | 2m17s | 0 | 2m23s | 6 s later, ±54 m, jumped 1.56 km |
+| Screen locked | 1m38s | 0 | 1m45s | 6 s later, ±26 m, jumped 1.08 km |
+| Spotify + our quiet audio loop | 2m11s | 0 | 2m18s | 7 s later, ±50 m |
+| Screen locked + our quiet audio loop | 1m19s | 0 | 1m24s | 5 s later, ±35 m |
+
+- **While the page is hidden, GPS is off.** This holds whether another app is in front or the
+  screen is locked, and whether or not audio plays. With the loop playing and the screen locked,
+  the page was never frozen and its timers kept running, yet no fix arrived. With no audio
+  playing, Chrome froze the page 60–90 s after it was hidden. Audio stops the freeze but not the GPS
+  cut-off, so the tour's own audio doesn't keep triggers working with the screen off either.
+- **Spotify takes the audio focus.** Our loop was paused 1 s after switching to Spotify.
+- **No errors, no restart needed.** `watchPosition` stops delivering while hidden and resumes by
+  itself 4–7 s after the page is back in front. The first fixes are rough (±26–54 m) and settle
+  under ±15 m within 5–10 s, sometimes after a few jumpy seconds (a 97 m backward step, then a
+  144 m step).
+- **What the player does today:** `onFix` triggers a stop only when a fix lands inside its zone.
+  A zone crossed entirely while hidden stays armed. When a later stop triggers, `advanceTo()`
+  silently marks the jumped-over stop skipped, and nothing tells the listener it was missed.
+  Position-derived speed across a gap or a jumpy patch is meaningless (144 m in 1 s is about
+  520 km/h).
+- **Uncertain, but unlikely to change the rule:** the hidden spans were shorter than the planned
+  3 minutes, but every hidden span got zero fixes. The phone was charging, and Android is
+  usually more lenient then, not less. The user agent doesn't reveal the real Android version.
+  Not tested: split-screen (the page stays visible, so GPS may continue) and the Spotify embed
+  player inside the page (see Open questions).
+
 ## Change
 
 **Content** (see `docs/process/4-topics.md`, `5-scripts.md` and `6-sound.md`):
@@ -39,6 +74,7 @@ Status: todo · Priority: medium · Raised: 2026-11-02 (Hobart road test)
   title = "..."
   artist = "..."
   spotify = "https://open.spotify.com/track/<id>"
+  length = "3:42"   # used by the "room for the song" check below
   why = "One line for the screen: why this song is here."
   ```
 - **Verify every link.** Don't trust a remembered track ID. Fetch
@@ -51,19 +87,67 @@ Status: todo · Priority: medium · Raised: 2026-11-02 (Hobart road test)
 - When a stop with a song ends, the Now card shows the song (title, artist, the `why` line) and
   **▶ Play on Spotify**. The card stays until the next stop starts. The song also appears in
   that stop's expanded card so it can be played later.
-- While the tour page is in the background, Chrome on Android stops delivering GPS. Show the
-  button only if the next trigger is far enough away for the song to finish (song length plus
-  1 minute, at the current speed). Otherwise show "Save for later", which keeps it in the stop
-  card. After a song, the next fix triggers normally (lookahead 2 covers a stop crossed while
-  in the background, but the one jumped over is marked skipped).
+- **While Spotify plays, the tour is deaf** (no GPS, see above). The tour still must not miss
+  a stop. Two rules handle this:
+- **Only offer the song when there's room.** Show **▶ Play on Spotify** only if
+  `time to next trigger > song length + 60 s`, otherwise show "Save for later", which keeps it
+  in the stop card.
+  - *Time to next trigger:* the straight-line distance from the current fix to the edge of the
+    nearest armed zone (`metres − radius`), divided by the speed. Straight-line distance is never
+    longer than the road distance, so the estimate errs toward "no room".
+  - *Speed:* the higher of `coords.speed` and the median speed over the last 2 minutes, but at
+    least 8 m/s. A stop at traffic lights then doesn't open a window that closes as soon as the
+    lights change.
+  - *The 60 s margin:* about 10 s from return to a usable fix (measured: 4–7 s to the first
+    fix, under ±15 m within 10 s), plus about 30 s for the listener to notice the song has ended
+    and switch back (unmeasured; Spotify may autoplay another song, so this is the soft part),
+    plus 20 s of buffer for speed changes. The deadline is the zone's edge, so arriving a little
+    late still triggers the stop inside the zone. The catch-up below covers worse cases.
+  - *Song length* comes from a `length = "3:42"` field in the song table. oEmbed doesn't
+    return the duration, so the author enters it (see Open questions).
+  - *Content side* (`docs/process/2-stops.md`): place a song stop only where the road time to
+    the next trigger at the planning speed covers the stop's audio, the song segment, the song
+    and the 60 s margin. The player check is then only a guard for slow traffic or a fast
+    driver.
+- **Catch up on return.** A stop passed while the page was away is offered, not lost.
+  - *Away* means the page was hidden, or no fix arrived for over 20 s.
+  - *When to check:* on the first fix after being away with accuracy ±50 m or better. If it's
+    worse, wait for the next; they come every second.
+  - *Triggering:* stops whose zone contains the new fix trigger as usual.
+  - *Passed while away:* an armed stop (in the lookahead window) whose centre lies within
+    `radius + 10 % of the jump` of the straight segment from the last fix before the gap to this
+    fix. The padding allows for curves on a 1–1.5 km jump. Mark it `missed` (shown like
+    skipped) and show it in the Now card as "Passed while you were away: Stop N ▶ Play" until
+    the next stop starts. Don't auto-play it, because it's behind the car.
+  - *Speed after a gap:* don't derive speed from positions across a gap or in the first 10 s
+    after it. Use `coords.speed` when the fix has it.
+  - Event-log cause `catch-up` (see 001's trigger log).
 - Optional: a "Drive soundtrack" list under More with every song in the tour.
 
 ## Acceptance
 
 - [ ] On an Android phone, the button opens Spotify at the right song, and coming back to the
       tab resumes GPS triggering.
+- [x] Measured whether GPS keeps working while Spotify plays or the screen is locked: it
+      doesn't, even with audio playing (3 Nov 2026, above).
+- [ ] The button shows only when `time to next trigger > song length + 60 s`; otherwise "Save
+      for later".
+- [ ] `tests/player_drive.py` simulates a hidden gap whose jump crosses a whole stop zone: that
+      stop is offered as "Passed while you were away" and the next one still triggers.
 - [ ] `tour check` rejects a song link whose oEmbed title doesn't match `title`.
 - [ ] A stop with a song has a spoken song segment that names the song and the artist and says
       why it is there.
 - [ ] `tests/player_drive.py` checks that the song card appears after the stop ends and clears
       when the next stop starts.
+
+## Open questions
+
+- **Song length:** check whether the track page (`open.spotify.com/track/<id>`) carries a
+  `music:duration` meta tag that `tour check` can read without an account. If not, the author
+  enters `length` by hand.
+- **Keep the page in front instead:** the Spotify embed player
+  (`open.spotify.com/embed/track/<id>`) inside the tour page would keep GPS running. Without a
+  Spotify login in Chrome it plays only a 30 s preview, so it would be a fallback, not the main
+  path. It would also revisit the "only link" decision, although it is Spotify's own licensed
+  player, not our audio. Android split-screen (Spotify and Chrome side by side) might also keep the page visible.
+  Both are untested; a 2-minute probe run would settle either one.

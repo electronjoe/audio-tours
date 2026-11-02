@@ -266,6 +266,13 @@ setInterval(() => {
   scheduleRender();
 }, TICK_MS);
 
+// Log every battery level change, for a screen-on walk test (tasks/007).
+navigator.getBattery?.().then((b) => {
+  const logBatt = () => add("battery", { batt: Math.round(b.level * 100), charging: b.charging ? 1 : 0 });
+  b.addEventListener("levelchange", logBatt);
+  b.addEventListener("chargingchange", logBatt);
+}).catch(() => {});
+
 async function battery() {
   try { const b = await navigator.getBattery(); return { batt: Math.round(b.level * 100), charging: b.charging ? 1 : 0 }; }
   catch { return {}; }
@@ -374,6 +381,7 @@ function line(e, ctx) {
     case "timergap": return head + `timers paused ${e.s}s`;
     case "load": return head + `page load (${e.nav}${e.discarded ? ", was discarded" : ""})`;
     case "ua": return head + `UA ${e.ua}`;
+    case "battery": return head + `battery ${e.batt}%${e.charging ? " charging" : ""}`;
     default: return head + e.type + (e.persisted != null ? ` persisted=${e.persisted}` : "") + (e.online != null ? ` online=${e.online}` : "");
   }
 }
