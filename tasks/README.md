@@ -15,6 +15,7 @@ Statuses: `todo`, `doing`, `blocked` (say on what), `done`.
 | 005 | [Script format v2: cast, guest voices, inline sound effects](005-script-format-v2.md) | doing (built, in Hobart stop 6; needs a listen) | Hobart road test |
 | 006 | [Song moments with Spotify links](006-spotify-songs.md) | doing | Hobart road test |
 | 007 | [Walking tours (trails and city walks)](007-walking-tours.md) | todo | Hobart road test |
+| 008 | [Route and stop tools: `tour route`, `tour plan-check`](008-route-and-stop-tools.md) | done | Process docs (004) |
 
 ## Template
 

@@ -30,7 +30,7 @@ constant must match, and `tests/test_publish.py` checks that they do.
 | `mode` | `"drive"` or `"walk"` | `[player].mode` (default `"drive"`) | Shown in the tour list. The player doesn't use it yet; walking-tour behaviour is task 007. |
 | `lookahead` | integer | `[player].lookahead` (default 2) | How many unplayed stops, counting from the next one in sequence, GPS may trigger. |
 | `stops` | array | `[stops.*]`, in file order | See below. |
-| `route` | object | `tours/<slug>/route.json` (or `{}`) | `outbound` and `return`: arrays of `[lat, lon]` points. Used for the route sketch and the simulated drive. |
+| `route` | object | `tours/<slug>/route.json` (or `{}`) | `outbound` and `return`: arrays of `[lat, lon]` points. Used for the route sketch and the simulated drive. A route made by `tour route` also has `seconds`: for each leg, OSRM's driving seconds from the leg's start at each point. The player ignores it. |
 
 ## Stops
 
