@@ -151,9 +151,10 @@ these points do:
   - A seed doesn't guarantee the same take twice.
 - To get some of B's flow into A, shorten the gap at a speaker change to about 0.35 s. Keep
   the narrator's own paragraph gap within a turn.
-- Confirm by listening to both files in the car. If B wins clearly, add a per-track switch
-  such as `[tracks.<id>] dialogue = true` that renders consecutive labelled turns as one
-  dialogue request.
+- **Decided (2026-11-03): A.** The user listened to the Tour-Platypus renders and chose
+  `stop-6-excerpt-A-stitched.mp3` ("fantastic! I love this"). Build A, with the voice, sound
+  bed and ducking used in that file as the reference. Leave the per-track dialogue switch out
+  unless a later tour needs it.
 
 **Syntax.** Keep the proposal above. It parsed without ambiguity in the lab. Refinements for
 the real parser:
