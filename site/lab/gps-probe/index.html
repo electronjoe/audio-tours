@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:,">
+<title>GPS background probe</title>
+<style>
+  :root { --bg:#f6f5f2; --fg:#1c1c1c; --muted:#6b6b6b; --card:#fff; --line:#ddd; --accent:#1f7a4d; --warn:#b5462b; --on:#1f7a4d; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#141414; --fg:#eee; --muted:#9a9a9a; --card:#1f1f1f; --line:#333; --accent:#3fae73; --warn:#e07a5f; --on:#3fae73; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.4 system-ui, sans-serif; }
+  main { max-width:640px; margin:0 auto; padding:12px 16px 48px; }
+  h1 { font-size:1.25rem; margin:4px 0 8px; }
+  h2 { font-size:1rem; margin:18px 0 6px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin:8px 0; }
+  .status { display:grid; grid-template-columns:auto 1fr; gap:2px 10px; font-size:.95rem; }
+  .status b { font-weight:600; }
+  .big { font-size:1.6rem; font-weight:700; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; }
+  button { font:inherit; padding:12px 14px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--fg); min-height:48px; flex:1 1 auto; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button.on { outline:3px solid var(--on); outline-offset:-3px; font-weight:700; }
+  button.phase { flex:1 1 45%; text-align:left; }
+  .muted { color:var(--muted); font-size:.9rem; }
+  .warn { color:var(--warn); }
+  table { border-collapse:collapse; width:100%; font-size:.85rem; }
+  th, td { border-bottom:1px solid var(--line); padding:4px 4px; text-align:right; white-space:nowrap; }
+  th:first-child, td:first-child { text-align:left; }
+  .scroll { overflow-x:auto; }
+  #log { font:12px/1.35 ui-monospace, Menlo, monospace; white-space:pre-wrap; word-break:break-word; max-height:60vh; overflow-y:auto; }
+  ol { padding-left:1.3em; } li { margin:4px 0; }
+  label { display:flex; gap:8px; align-items:center; margin:6px 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>GPS background probe</h1>
+<p class="muted">A throwaway lab page: it logs every location fix and tells us whether Chrome keeps
+delivering them while this page is hidden or the screen is locked. The log stays on this phone
+until you copy or share it. The screen never shows your coordinates.</p>
+
+<div class="card status" id="status"></div>
+
+<div class="row">
+  <button id="gps" class="primary">Start GPS</button>
+  <button id="loop">Start audio loop</button>
+</div>
+
+<h2>Test phase (tap at the start of each step)</h2>
+<div class="row" id="phases"></div>
+
+<details class="card" id="howto">
+<summary><b>Test plan (Android Chrome)</b></summary>
+<p class="muted">Do this as a passenger in a moving car, or on a walk outside, so the GPS has
+something to report. Close the tour tab first. If Chrome asks for location, allow it. Leave the
+phone's volume at a normal level.</p>
+<ol>
+  <li><b>1 Screen on</b>: tap <i>Start GPS</i>, then <i>1 Screen on</i>. Keep this page in front with
+    the screen on for 2 minutes.</li>
+  <li><b>2 Spotify</b>: tap <i>2 Spotify</i>, open Spotify and play a song for 3 minutes. Then come
+    back to Chrome (pause Spotify first) and tap <i>Mark</i>.</li>
+  <li><b>3 Locked</b>: tap <i>3 Locked</i>, then press the power button with this page in front.
+    Wait 3 minutes, unlock and tap <i>Mark</i>.</li>
+  <li><b>4a Spotify + loop</b>: tap it (the quiet loop starts; you should see it in the
+    notification shade). Open Spotify and play a song for 3 minutes, come back, tap <i>Mark</i>.
+    Spotify will probably pause the loop. That is a result, so don't restart it while you're in
+    Spotify.</li>
+  <li><b>4b Locked + loop</b>: tap it (the loop restarts), lock the screen for 3 minutes, unlock,
+    tap <i>Mark</i>.</li>
+  <li>Tap <i>Done</i>, then <i>Share log</i> (or <i>Copy log</i>) and send it back.</li>
+</ol>
+<p class="muted">The timer in the status box shows how long the current phase has run. The
+<i>Keep screen on</i> option holds a wake lock, which spoils the lock-screen steps, so leave it
+off unless you're testing a walk with the screen on (task 007).</p>
+</details>
+
+<h2>Summary</h2>
+<div class="card scroll" id="summary"></div>
+
+<h2>Log</h2>
+<div class="row">
+  <button id="mark">Mark</button>
+  <button id="share">Share log</button>
+  <button id="copy">Copy log</button>
+  <button id="clear">Clear</button>
+</div>
+<div class="card">
+  <label><input type="checkbox" id="wake"> Keep screen on (wake lock)</label>
+  <label><input type="checkbox" id="coords"> Include raw coordinates in the shared log</label>
+  <p class="muted">Without coordinates, the shared log gives each fix's distance from the first
+  fix and from the previous fix, which is enough to see movement.</p>
+</div>
+<div class="card" id="log"></div>
+</main>
+
+<script>
+"use strict";
+// Same options as site/player/app.js startGPS(), so this probe tests what the player does.
+const WATCH_OPTS = { enableHighAccuracy: true, maximumAge: 2000, timeout: 30000 };
+const COARSE_OPTS = { enableHighAccuracy: false, maximumAge: 60000, timeout: 20000 };
+const RETRY_MS = 5000; // the player restarts the watch 5 s after a non-permission error
+const TICK_MS = 5000; // heartbeat; a late tick means JS timers were throttled or frozen
+const TICK_GAP_MS = 15000; // log a timer gap when a tick arrives this late
+const KEY = "gpsprobe:log";
+const MAX_EVENTS = 6000;
+const PHASES = [
+  ["1", "1 Screen on", "2 min"],
+  ["2", "2 Spotify", "3 min"],
+  ["3", "3 Locked", "3 min"],
+  ["4a", "4a Spotify + loop", "3 min"],
+  ["4b", "4b Locked + loop", "3 min"],
+  ["free", "Free test", ""],
+  ["done", "Done", ""],
+];
+const ERR = { 1: "denied", 2: "unavailable", 3: "timeout" };
+const $ = (s) => document.querySelector(s);
+
+// --- log ----------------------------------------------------------------------
+
+let log = [];
+try { log = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch { log = []; }
+let phase = [...log].reverse().find((e) => e.type === "phase")?.phase || "-";
+let phaseAt = [...log].reverse().find((e) => e.type === "phase")?.t || null;
+let lastFix = [...log].reverse().find((e) => e.type === "fix") || null;
+let saveFailed = false;
+
+const audio = new Audio(); // an HTMLAudioElement, kept out of the DOM
+audio.loop = true;
+let wakeLock = null;
+
+const loopPlaying = () => !audio.paused && !audio.ended && audio.src !== "";
+
+function add(type, data = {}) {
+  const e = { t: Date.now(), type, phase, vis: document.visibilityState[0], loop: loopPlaying() ? 1 : 0, ...data };
+  log.push(e);
+  if (log.length > MAX_EVENTS) log.splice(0, log.length - MAX_EVENTS);
+  try { localStorage.setItem(KEY, JSON.stringify(log)); saveFailed = false; } catch { saveFailed = true; }
+  scheduleRender();
+  return e;
+}
+
+// --- geolocation --------------------------------------------------------------
+
+let watchId = null;
+let retryTimer = null;
+let gpsOn = false;
+
+function onPosition(p, source) {
+  const c = p.coords;
+  const now = Date.now();
+  const e = {
+    src: source,
+    lat: c.latitude, lon: c.longitude,
+    acc: Math.round(c.accuracy),
+    spd: c.speed == null ? null : Math.round(c.speed * 10) / 10,
+    age: Math.round((now - p.timestamp) / 1000), // seconds since the fix was taken (stale = cached)
+    gap: lastFix ? Math.round((now - lastFix.t) / 1000) : null,
+  };
+  lastFix = add("fix", e);
+}
+
+function startWatch() {
+  clearTimeout(retryTimer);
+  if (watchId != null) navigator.geolocation.clearWatch(watchId);
+  watchId = navigator.geolocation.watchPosition(
+    (p) => onPosition(p, "watch"),
+    (err) => {
+      add("error", { code: err.code, msg: String(err.message || "").slice(0, 80) });
+      if (err.code === err.PERMISSION_DENIED) { stopGPS(false); return; }
+      // Mirror the player: ask once for a rough network fix, then restart the watch.
+      navigator.geolocation.getCurrentPosition((p) => onPosition(p, "coarse"),
+        (e2) => add("error", { src: "coarse", code: e2.code }), COARSE_OPTS);
+      retryTimer = setTimeout(() => { if (gpsOn) { add("retry"); startWatch(); } }, RETRY_MS);
+    },
+    WATCH_OPTS,
+  );
+}
+
+function startGPS() {
+  if (!("geolocation" in navigator)) { add("error", { msg: "no geolocation" }); return; }
+  gpsOn = true;
+  add("gps", { on: 1 });
+  startWatch();
+}
+
+function stopGPS(log_ = true) {
+  gpsOn = false;
+  clearTimeout(retryTimer);
+  if (watchId != null) navigator.geolocation.clearWatch(watchId);
+  watchId = null;
+  if (log_) add("gps", { on: 0 });
+  scheduleRender();
+}
+
+// --- quiet audio loop -----------------------------------------------------------
+
+// A 10 s, 8 kHz mono WAV of a faint 200 Hz tone (about -40 dBFS). Long enough for Chrome to
+// treat it as media (very short clips don't get a media notification), quiet enough to sit
+// under a conversation, audible if you hold the phone to your ear.
+function quietWavURL() {
+  const rate = 8000, secs = 10, n = rate * secs, amp = 0.01 * 32767;
+  const buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  const str = (o, s) => [...s].forEach((ch, i) => v.setUint8(o + i, ch.charCodeAt(0)));
+  str(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); str(8, "WAVE");
+  str(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  str(36, "data"); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.round(amp * Math.sin(2 * Math.PI * 200 * i / rate)), true);
+  return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+}
+
+async function startLoop() {
+  if (!audio.src) audio.src = quietWavURL();
+  if ("mediaSession" in navigator) {
+    navigator.mediaSession.metadata = new MediaMetadata({ title: "GPS probe: quiet loop", artist: "Audio tours lab", album: "Background test" });
+  }
+  try { await audio.play(); } catch (err) { add("audio", { ev: "play-failed", msg: String(err.message || err).slice(0, 80) }); }
+}
+function stopLoop() { audio.pause(); }
+
+for (const ev of ["play", "playing", "pause", "waiting", "stalled", "suspend", "error"]) {
+  audio.addEventListener(ev, () => {
+    if (ev === "suspend" && !loopPlaying()) return; // routine after load; only interesting mid-play
+    add("audio", { ev });
+  });
+}
+if ("mediaSession" in navigator) {
+  navigator.mediaSession.setActionHandler("play", () => { add("audio", { ev: "session-play" }); startLoop(); });
+  navigator.mediaSession.setActionHandler("pause", () => { add("audio", { ev: "session-pause" }); stopLoop(); });
+}
+
+// --- wake lock (only when asked) ------------------------------------------------
+
+async function setWake(on) {
+  if (!on) { await wakeLock?.release().catch(() => {}); wakeLock = null; return; }
+  try {
+    wakeLock = await navigator.wakeLock.request("screen");
+    add("wake", { on: 1 });
+    wakeLock.addEventListener("release", () => { add("wake", { on: 0 }); wakeLock = null; scheduleRender(); });
+  } catch (err) { add("wake", { on: 0, msg: String(err.message || err).slice(0, 80) }); $("#wake").checked = false; }
+}
+
+// --- page lifecycle -------------------------------------------------------------
+
+document.addEventListener("visibilitychange", () => {
+  add("vis", { state: document.visibilityState });
+  // A wake lock is dropped when the page hides; take it again on return if the box is ticked.
+  if (document.visibilityState === "visible" && $("#wake").checked && !wakeLock) setWake(true);
+});
+document.addEventListener("freeze", () => add("freeze"));
+document.addEventListener("resume", () => add("resume"));
+addEventListener("pagehide", (e) => add("pagehide", { persisted: e.persisted ? 1 : 0 }));
+addEventListener("pageshow", (e) => { if (e.persisted) add("pageshow", { persisted: 1 }); });
+addEventListener("online", () => add("net", { online: 1 }));
+addEventListener("offline", () => add("net", { online: 0 }));
+
+let lastTick = Date.now();
+setInterval(() => {
+  const now = Date.now();
+  if (now - lastTick > TICK_GAP_MS) add("timergap", { s: Math.round((now - lastTick) / 1000) });
+  lastTick = now;
+  scheduleRender();
+}, TICK_MS);
+
+async function battery() {
+  try { const b = await navigator.getBattery(); return { batt: Math.round(b.level * 100), charging: b.charging ? 1 : 0 }; }
+  catch { return {}; }
+}
+
+async function setPhase(id) {
+  phase = id;
+  phaseAt = Date.now();
+  add("phase", { phase: id, ...(await battery()) });
+  // Phases 1-3 run without the loop, 4a/4b with it. The tap is the user gesture play() needs.
+  if (id === "4a" || id === "4b") startLoop();
+  else if (["1", "2", "3", "done"].includes(id)) stopLoop();
+  if (id !== "done" && !gpsOn) startGPS();
+  render();
+}
+
+// --- summary ------------------------------------------------------------------
+
+function phaseSpans() {
+  // Split the log into runs of the same phase label (a phase may be repeated).
+  const spans = [];
+  for (const e of log) {
+    const last = spans[spans.length - 1];
+    if (!last || e.type === "phase") spans.push({ phase: e.phase, events: [e] });
+    else last.events.push(e);
+  }
+  return spans.filter((s) => s.phase !== "-" || s.events.some((e) => e.type === "fix"));
+}
+
+function summarise(span, endT) {
+  const ev = span.events;
+  const t0 = ev[0].t, t1 = endT ?? ev[ev.length - 1].t;
+  // Hidden intervals inside this span, from visibility events (the first event carries the state).
+  let hiddenMs = 0, hidSince = ev[0].vis === "h" ? t0 : null;
+  const hiddenRanges = [];
+  for (const e of ev) {
+    if (e.type !== "vis") continue;
+    if (e.state === "hidden" && hidSince == null) hidSince = e.t;
+    if (e.state === "visible" && hidSince != null) { hiddenRanges.push([hidSince, e.t]); hidSince = null; }
+  }
+  if (hidSince != null) hiddenRanges.push([hidSince, t1]);
+  for (const [a, b] of hiddenRanges) hiddenMs += b - a;
+  const fixes = ev.filter((e) => e.type === "fix");
+  const hidden = fixes.filter((e) => e.vis === "h");
+  // Gaps between consecutive fixes (including the time from span start to the first fix and
+  // from the last fix to the span end, so a phase with no fixes shows one long gap).
+  const times = [t0, ...fixes.map((f) => f.t), t1];
+  let maxGap = 0, maxHidGap = 0;
+  for (let i = 1; i < times.length; i++) {
+    const a = times[i - 1], b = times[i], g = b - a;
+    maxGap = Math.max(maxGap, g);
+    if (hiddenRanges.some(([ha, hb]) => ha < b && hb > a)) maxHidGap = Math.max(maxHidGap, g);
+  }
+  const accs = fixes.map((f) => f.acc).sort((a, b) => a - b);
+  const loopFix = fixes.filter((f) => f.loop).length;
+  return {
+    phase: span.phase, start: t0, dur: t1 - t0, hiddenMs,
+    fixes: fixes.length, hiddenFixes: hidden.length, loopFix,
+    maxGap, maxHidGap,
+    medAcc: accs.length ? accs[Math.floor(accs.length / 2)] : null,
+    errors: ev.filter((e) => e.type === "error").length,
+    timerGap: Math.max(0, ...ev.filter((e) => e.type === "timergap").map((e) => e.s)),
+    frozen: ev.filter((e) => e.type === "freeze").length,
+  };
+}
+
+function summaries() {
+  const spans = phaseSpans();
+  return spans.map((s, i) => summarise(s, spans[i + 1]?.events[0].t ?? (s.phase === "done" ? s.events[s.events.length - 1].t : Date.now())))
+    .filter((s) => s.phase !== "done");
+}
+
+// --- formatting -----------------------------------------------------------------
+
+const pad = (n) => String(n).padStart(2, "0");
+const hms = (t) => { const d = new Date(t); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+const dur = (ms) => { const s = Math.round(ms / 1000); return s >= 60 ? `${Math.floor(s / 60)}m${pad(s % 60)}s` : `${s}s`; };
+
+function metres(a, b) {
+  const R = 6371000, r = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * r, dLon = (b.lon - a.lon) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function line(e, ctx) {
+  const head = `${hms(e.t)} ${e.phase.padEnd(4)} ${e.vis === "v" ? "vis" : "HID"} ${e.loop ? "loop" : "    "} `;
+  switch (e.type) {
+    case "fix": {
+      let where = "";
+      if (ctx) {
+        const d0 = ctx.first ? Math.round(metres(ctx.first, e)) : 0;
+        const step = ctx.prev ? Math.round(metres(ctx.prev, e)) : 0;
+        where = ctx.coords ? ` ${e.lat.toFixed(5)},${e.lon.toFixed(5)}` : ` d0=${d0}m step=${step}m`;
+      }
+      return head + `FIX ${e.src === "coarse" ? "coarse " : ""}acc=${e.acc}m` +
+        (e.spd != null ? ` spd=${e.spd}m/s` : "") + (e.age > 2 ? ` age=${e.age}s` : "") +
+        (e.gap != null ? ` gap=${e.gap}s` : "") + where;
+    }
+    case "error": return head + `GPS ERROR ${e.src ? e.src + " " : ""}${ERR[e.code] || "code=" + e.code}${e.msg ? " " + e.msg : ""}`;
+    case "vis": return head + `page ${e.state}`;
+    case "audio": return head + `audio ${e.ev}${e.msg ? " " + e.msg : ""}`;
+    case "phase": return head + `== PHASE ${e.phase}` + (e.batt != null ? ` battery=${e.batt}%${e.charging ? " charging" : ""}` : "");
+    case "gps": return head + `GPS watch ${e.on ? "started" : "stopped"}`;
+    case "wake": return head + `wake lock ${e.on ? "held" : "released"}${e.msg ? " " + e.msg : ""}`;
+    case "timergap": return head + `timers paused ${e.s}s`;
+    case "load": return head + `page load (${e.nav}${e.discarded ? ", was discarded" : ""})`;
+    case "ua": return head + `UA ${e.ua}`;
+    default: return head + e.type + (e.persisted != null ? ` persisted=${e.persisted}` : "") + (e.online != null ? ` online=${e.online}` : "");
+  }
+}
+
+function summaryText() {
+  const rows = summaries();
+  const out = ["phase  start     dur    hidden  fixes  hidFix  loopFix  maxGap  maxGapHid  medAcc  errs  timerGap  freezes"];
+  for (const s of rows) {
+    out.push([s.phase.padEnd(6), hms(s.start).padEnd(9), dur(s.dur).padEnd(6), dur(s.hiddenMs).padEnd(7),
+      String(s.fixes).padEnd(6), String(s.hiddenFixes).padEnd(7), String(s.loopFix).padEnd(8),
+      dur(s.maxGap).padEnd(7), (s.maxHidGap ? dur(s.maxHidGap) : "-").padEnd(10),
+      (s.medAcc != null ? s.medAcc + "m" : "-").padEnd(7), String(s.errors).padEnd(5),
+      (s.timerGap ? s.timerGap + "s" : "-").padEnd(9), s.frozen].join(" "));
+  }
+  return out.join("\n");
+}
+
+function exportText() {
+  const coords = $("#coords").checked;
+  const ctx = { coords, first: null, prev: null };
+  const lines = [];
+  for (const e of log) {
+    lines.push(line(e, ctx));
+    if (e.type === "fix" && e.src === "watch") { ctx.first ??= e; ctx.prev = e; }
+  }
+  return [
+    "GPS background probe log",
+    `exported ${new Date().toString()}`,
+    `watch options ${JSON.stringify(WATCH_OPTS)}`,
+    "",
+    "SUMMARY (maxGapHid = longest wait between fixes that overlapped hidden time)",
+    summaryText(),
+    "",
+    "EVENTS (oldest first; vis/HID = page visible/hidden; loop = quiet loop playing)",
+    ...lines,
+  ].join("\n");
+}
+
+// --- render ---------------------------------------------------------------------
+
+let renderQueued = false;
+function scheduleRender() {
+  if (renderQueued || document.visibilityState !== "visible") return;
+  renderQueued = true;
+  requestAnimationFrame(() => { renderQueued = false; render(); });
+}
+
+const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+
+function render() {
+  const now = Date.now();
+  const fixAge = lastFix ? Math.round((now - lastFix.t) / 1000) : null;
+  const stale = fixAge != null && fixAge > 15;
+  $("#status").innerHTML = [
+    ["Phase", `<span class="big">${esc(phase)}</span>` + (phaseAt && phase !== "done" ? ` &nbsp;${dur(now - phaseAt)}` : "")],
+    ["GPS", gpsOn ? "watching" : "off"],
+    ["Last fix", lastFix ? `<span class="${stale ? "warn" : ""}">${fixAge}s ago, ±${lastFix.acc} m${lastFix.spd != null ? `, ${lastFix.spd} m/s` : ""}</span>` : "none yet"],
+    ["Audio loop", loopPlaying() ? "playing" : "stopped"],
+    ["Wake lock", wakeLock ? "held (screen stays on)" : "off"],
+    ["Events", `${log.length}${saveFailed ? ' <span class="warn">(storage full: share and clear)</span>' : ""}`],
+  ].map(([k, v]) => `<b>${k}</b><span>${v}</span>`).join("");
+
+  $("#gps").textContent = gpsOn ? "Stop GPS" : "Start GPS";
+  $("#gps").className = gpsOn ? "" : "primary";
+  $("#loop").textContent = loopPlaying() ? "Stop audio loop" : "Start audio loop";
+  $("#loop").classList.toggle("on", loopPlaying());
+  for (const b of document.querySelectorAll("button.phase")) b.classList.toggle("on", b.dataset.id === phase);
+
+  const rows = summaries();
+  $("#summary").innerHTML = rows.length ? `<table><tr><th>Phase</th><th>Time</th><th>Hidden</th><th>Fixes</th><th>Fixes hidden</th><th>Max gap</th><th>Max gap hidden</th><th>Acc.</th></tr>` +
+    rows.map((s) => `<tr><td>${esc(s.phase)}</td><td>${dur(s.dur)}</td><td>${dur(s.hiddenMs)}</td><td>${s.fixes}</td><td>${s.hiddenFixes}</td><td>${dur(s.maxGap)}</td><td>${s.maxHidGap ? dur(s.maxHidGap) : "-"}</td><td>${s.medAcc != null ? s.medAcc + " m" : "-"}</td></tr>`).join("") +
+    `</table>` : `<span class="muted">No fixes yet.</span>`;
+
+  // Newest first, no coordinates on screen.
+  $("#log").textContent = log.slice(-400).reverse().map((e) => line(e, null)).join("\n") || "Empty.";
+}
+
+// --- wiring ---------------------------------------------------------------------
+
+$("#phases").innerHTML = PHASES.map(([id, label, len]) =>
+  `<button class="phase" data-id="${id}">${label}${len ? ` <span class="muted">${len}</span>` : ""}</button>`).join("");
+$("#phases").addEventListener("click", (e) => { const b = e.target.closest("button.phase"); if (b) setPhase(b.dataset.id); });
+$("#gps").onclick = () => (gpsOn ? stopGPS() : startGPS());
+$("#loop").onclick = () => (loopPlaying() ? stopLoop() : startLoop());
+$("#mark").onclick = () => add("mark");
+$("#wake").onchange = (e) => setWake(e.target.checked);
+
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch {}
+  const ta = Object.assign(document.createElement("textarea"), { value: text });
+  document.body.append(ta); ta.select();
+  const ok = document.execCommand("copy"); ta.remove();
+  return ok;
+}
+$("#copy").onclick = async () => alert((await copyText(exportText())) ? "Log copied." : "Couldn't copy.");
+$("#share").onclick = async () => {
+  const text = exportText();
+  if (navigator.share) {
+    try { await navigator.share({ title: "GPS probe log", text }); return; }
+    catch (err) { if (err.name === "AbortError") return; }
+  }
+  alert((await copyText(text)) ? "Sharing isn't available, so the log was copied instead." : "Couldn't share or copy.");
+};
+$("#clear").onclick = () => {
+  if (!confirm("Clear the whole log?")) return;
+  log = []; lastFix = null; phase = "-"; phaseAt = null;
+  try { localStorage.removeItem(KEY); } catch {}
+  add("ua", { ua: navigator.userAgent });
+  render();
+};
+
+// Record the page load, and the user agent once per log.
+const nav = performance.getEntriesByType("navigation")[0]?.type || "navigate";
+add("load", { nav, discarded: document.wasDiscarded ? 1 : 0 });
+if (!log.some((e) => e.type === "ua")) add("ua", { ua: navigator.userAgent });
+// If the page was reloaded or discarded mid-test, carry on watching (permission is already granted).
+const lastGps = [...log].reverse().find((e) => e.type === "gps");
+if (lastGps?.on && phase !== "done") startGPS();
+$("#howto").open = !lastFix;
+render();
+</script>
+</body>
+</html>
