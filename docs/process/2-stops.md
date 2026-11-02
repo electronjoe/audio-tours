@@ -42,6 +42,14 @@ place = "Approaching Bushy Park and the hop fields"   # shown on screen
 # nav = [lat, lon]       # where Maps should take you, if not the trigger (task 003)
 ```
 
+Then run `uv run tour plan-check <slug>` (offline). It finds each trigger on `route.json` in
+sequence and checks that it is within 100 m of the route, that the road time to the next
+trigger (OSRM's, plus any `wait`) covers the stop's audio, and for a song stop the song's
+`length` and a 60 s margin too, that radii are in the ranges above, and that a stop whose zone
+is on the road to an earlier stop while it is armed has `strict = true`. Audio lengths come
+from `build/`, else the published `tour.json`, else an estimate from the draft. It exits 1 on
+errors.
+
 Then add a row per stop to `plan.md`: stop, place, direction (outbound, return or parked),
 budget in seconds, and the minutes of road until the next trigger.
 

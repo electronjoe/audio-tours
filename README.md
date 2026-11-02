@@ -26,6 +26,8 @@ uv run tour account    # free: credits remaining
 ## Making a tour
 
 ```sh
+uv run tour route hobart --out /tmp/route.json   # free (OSRM, cached): legs from [route.*], leg table
+uv run tour plan-check hobart            # offline: triggers on the route, road time, radii, strict
 uv run tour check hobart                 # offline: draft follows docs/script-format.md
 uv run tour design hobart --name ... --description ... --text ...   # PAID: voice previews
 uv run tour sfx hobart                   # PAID: chime and effects from tour.toml

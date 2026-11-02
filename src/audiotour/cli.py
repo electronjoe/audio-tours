@@ -8,8 +8,10 @@ import json
 import re
 import shutil
 import sys
+from pathlib import Path
 
 from . import config, eleven, master, publish, render
+from . import route as route_tools
 from .script import Problem, check_file, load_tracks
 from .spend import Guard, read_ledger
 
@@ -203,6 +205,35 @@ def cmd_pages(_: argparse.Namespace) -> None:
     publish.pages()
 
 
+def cmd_route(args: argparse.Namespace) -> None:
+    """Fetch each [route.<leg>] from OSRM (cached), simplify it and write route.json."""
+    tour = config.tour(args.tour)
+    content, legs = route_tools.build(tour, refresh=args.refresh, spacing=args.spacing)
+    for line in route_tools.leg_table(legs):
+        print(line)
+    out = Path(args.out).resolve() if args.out else tour.root / "route.json"
+    current = tour.root / "route.json"
+    if args.out and current.exists():
+        for line in route_tools.compare(content, json.loads(current.read_text())):
+            print(f"vs {config.show(current)}: {line}")
+    route_tools.write(content, out)
+    print(f"  -> {config.show(out)}")
+
+
+def cmd_plan_check(args: argparse.Namespace) -> None:
+    """Offline: check the stops against route.json and docs/process/2-stops.md; exit 1 on errors."""
+    tour = config.tour(args.tour, args.draft)
+    path = Path(args.route).resolve() if args.route else tour.root / "route.json"
+    if not path.exists():
+        raise SystemExit(f"No {config.show(path)}; run `uv run tour route {tour.slug}` first.")
+    rows, findings, trip = route_tools.check(tour, json.loads(path.read_text()))
+    print(f"route: {config.show(path)}")
+    for line in route_tools.report(rows, findings, trip):
+        print(line)
+    if any(f.level == "error" for f in findings):
+        sys.exit(1)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="tour")
     sub = parser.add_subparsers(required=True)
@@ -295,6 +326,19 @@ def main() -> None:
     p = sub.add_parser("ledger", help="offline: spend recorded for a tour")
     p.add_argument("tour")
     p.set_defaults(func=cmd_ledger)
+
+    p = sub.add_parser("route", help="free (OSRM): fetch the route legs, write route.json, print the leg table")
+    p.add_argument("tour")
+    p.add_argument("--out", metavar="FILE", help="write here instead of tours/<tour>/route.json, and compare with it")
+    p.add_argument("--spacing", type=float, default=route_tools.SPACING, help="metres between kept points")
+    p.add_argument("--refresh", action="store_true", help="ask OSRM again instead of using cache/osrm/")
+    p.set_defaults(func=cmd_route)
+
+    p = sub.add_parser("plan-check", help="offline: check triggers, timing, radii and strict against route.json")
+    p.add_argument("tour")
+    p.add_argument("--route", metavar="FILE", help="another route.json, e.g. one written by `tour route --out`")
+    p.add_argument("--draft", metavar="FILE", help="another draft in tours/<tour>/source/ (builds into build/<its name>/)")
+    p.set_defaults(func=cmd_plan_check)
 
     args = parser.parse_args()
     args.func(args)

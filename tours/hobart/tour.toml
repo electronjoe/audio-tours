@@ -66,6 +66,18 @@ prompt = "A small animal slipping into calm river water, one soft splash, close,
 duration = 2
 level_db = -8
 
+# --- Route -----------------------------------------------------------------------
+# Legs for `uv run tour route hobart` (docs/process/1-route.md): each is driven through its
+# points in order (start, any fixed stops, end). `wait` is minutes parked at the leg's end,
+# which `tour plan-check` adds to the road time between triggers.
+
+[route.outbound]
+points = [[-42.88199, 147.33654], [-42.68181, 146.71655]]   # Hobart CBD -> Mount Field visitor centre
+wait = 30                # the Russell Falls walk; a planning figure, not measured
+
+[route.return]
+points = [[-42.68181, 146.71655], [-42.75321, 146.97], [-42.88199, 147.33654]]   # via the Salmon Ponds, Plenty
+
 # --- Stops -----------------------------------------------------------------------
 # Stops play in this order. Trigger points sit on the OSRM driving route a few minutes
 # before each landmark (route.json). Only the next stop in sequence, or the one after it,
