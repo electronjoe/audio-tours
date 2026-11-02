@@ -1,6 +1,6 @@
 # 005: Script format v2: cast, guest voices, inline sound effects
 
-Status: doing (built; waiting on a phone-speaker listen and the speaker-gap choice) · Priority: high · Raised: 2026-11-02 (Hobart road test)
+Status: doing (built and in Hobart stop 6; waiting on a phone-speaker listen) · Priority: high · Raised: 2026-11-02 (Hobart road test)
 
 ## Why
 
@@ -52,8 +52,9 @@ because it has no speaker labels and no bracketed cues (`docs/script-format.md`)
       `tour check hobart --draft stop-6-platypus.md`, and `tests/test_script.py`.)
 - [ ] Rendered and mastered, it has both voices, the SFX at the right moments, and speech that
       stays intelligible over the bed (listen on phone speakers, not just headphones). Built as
-      `build/stop-6-platypus/stop-6.mp3`; the placement is checked by
-      `tests/test_master_mix.py`. It still needs a listen.
+      `build/stop-6-platypus/stop-6.mp3`, and now as the published stop 6
+      (`build/stop-6.mp3`); the placement is checked by `tests/test_master_mix.py`. It still
+      needs a listen.
 - [x] `tests/test_script.py` covers the new syntax, and the prompt in `docs/script-format.md`
       is updated to match the parser.
 - [x] `ledger.jsonl` shows the extra credit cost per stop, so the cost of multi-voice is known.
@@ -216,3 +217,28 @@ Method A, per-speaker TTS, in the real pipeline. `lab/` is gone: the excerpt is 
   speech and −16.3 dB in the gaps). `stop-6-speaker-gap-1.0.mp3` (75 s) uses the reference's
   roughly 1 s hand-offs for comparison. The lab reference measured about 1.0 s of silence between
   turns: its 0.6 s gap plus the trim padding.
+
+## Woven into Hobart stop 6 (2026-11-03)
+
+The interview is now part of the published stop 6, written in the real script. The draft has a
+`## Cast` with PLATYPUS, and the old stop's explanation paragraphs became the platypus's
+answers, so no fact is told twice:
+
+- **Kept:** the hook (eyes, ears, nostrils), the reveal, monotremes, the doubtful naturalists,
+  the Tyenna and the riverbank advice, and the close.
+- **Moved to the platypus:** the electric signals and the sense of movement, "no zapping",
+  the secret message, the diet with the webbed front feet and the fat in the tail, and fur,
+  milk and eggs. These are all from the stop 6 research notes (Australian Museum, AMNH,
+  Australian Platypus Conservancy).
+- **Dropped:** "Imagine trying to find a shrimp under dark water…" (the shrimp is now in
+  the platypus's answer). "This is real biology…" became the narrator's thank-you line.
+- **Sound:** the river bed runs from the first line to the end of the interview, with the
+  splash right after "a hunter dives".
+- **New pause:** a `[PAUSE — 3 SECONDS]` after "Would you give it a lamp? A camera?
+  Whiskers?", so the stop's question has thinking time.
+
+The stop has 2,023 spoken characters (2,088 before), 3.0 minutes mastered (179 to 181 s).
+The render cost 453 credits by the ledger's cost headers, for 12 chunks and 2,059 characters,
+with the title cached. The account went from 22,915 to 23,347 credits used. The account delta
+is 432, below the ledger's 453 because the account counter lags. Only stop 6 changed in
+`site/hobart/`.

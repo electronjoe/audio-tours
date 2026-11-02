@@ -60,8 +60,9 @@ The narrator stays the host and interviews a guest at a few stops per tour.
   one line re-renders only that line, and a speaker change gets a short hand-off gap.
 - A custom voice slot is scarce (the plan holds 3, all in use), so reuse a guest voice across
   tours where it fits, or ask before designing a new one (6-sound.md).
-- Example: `tours/hobart/source/stop-6-platypus.md`, the narrator interviewing a platypus.
-  Trying a guest moment as its own draft like this is cheap: `tour check|render|master <slug>
+- Example: Hobart stop 6 in `tours/hobart/source/working-draft.md`, where the narrator
+  interviews a platypus. It was first tried as its own draft, `source/stop-6-platypus.md`.
+  That is cheap: `tour check|render|master <slug>
   <stop> --draft <file>.md` builds into `build/<file>/` and never touches the published stops,
   and lines that keep their text and neighbours come from the cache.
 

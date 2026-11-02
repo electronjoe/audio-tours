@@ -69,11 +69,19 @@ def test_changes_of_speaker_split_chunks_and_cues_do_not():
     ]
 
 
-def test_hobart_plans_are_unchanged_by_the_new_syntax():
-    """Every Hobart stop is still one narrator, so its chunks (and cache keys) are as before."""
+def test_hobart_stop6_interviews_the_platypus():
+    """Stop 6 alternates narrator and platypus chunks over a river bed; the other stops are
+    one narrator with no cues, so their chunks (and cache keys) are as before."""
     for t in load_tracks(TOURS_DIR / "hobart" / "source" / "working-draft.md"):
-        assert {seg.voice for seg in t.segments if isinstance(seg, Text)} == {"narrator"}
-        assert not any(isinstance(seg, Cue) for seg in t.segments)
+        voices = {seg.voice for seg in t.segments if isinstance(seg, Text)}
+        cues = [(c.sfx, c.mode) for c in t.segments if isinstance(c, Cue)]
+        if t.id == "stop-6":
+            assert voices == {"narrator", "platypus"}
+            assert cues == [("river", "under"), ("splash", "once"), ("river", "stop")]
+            chunks = [x for x in plan_track(t, [], 1500, False) if isinstance(x, Chunk)]
+            assert [c.voice for c in chunks[:3]] == ["narrator", "platypus", "narrator"]
+        else:
+            assert voices == {"narrator"} and cues == []
 
 
 def test_title_without_label():

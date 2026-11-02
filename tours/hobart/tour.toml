@@ -51,8 +51,8 @@ duration = 1.5
 variants = 2
 chosen = 1
 
-# Stop 6 interview (source/stop-6-platypus.md). Same requests as the lab 005 takes, so
-# they come from the cache. level_db: relative to the voice (a bed's level in the gaps);
+# Stop 6's interview (working-draft.md; first tried as source/stop-6-platypus.md). Same
+# requests as the lab 005 takes, so they come from the cache. level_db: relative to the voice (a bed's level in the gaps);
 # duck_db: a bed's extra reduction under speech.
 [sfx.river]
 prompt = "Gentle shallow river flowing over stones in quiet Tasmanian forest, soft distant birds, steady, no music, no voices"

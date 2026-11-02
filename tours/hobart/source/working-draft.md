@@ -2,6 +2,12 @@
 
 Eight short audio stories for the drive from Hobart to Mount Field and back. Narration from the research notes (local only, gitignored), which hold the sources and fact checks.
 
+## Cast
+
+- PLATYPUS → voices.platypus: a cheerful, quick, slightly cheeky young platypus. A light
+  Australian accent, not a caricature. Clearly different from the narrator: younger, faster,
+  higher.
+
 ## Script: Stop 1 — The Road That Tried to Sink
 
 Imagine being given this job.
@@ -272,7 +278,11 @@ Direction: ARRIVAL / PARKED. Trigger: Parked at Mount Field Visitor Centre befor
 
 ## Script: Stop 6 — The Hunter with an Electric Face
 
+[SFX — river, under]
+
 Somewhere in a Tasmanian river, a hunter dives.
+
+[SFX — splash]
 
 It closes its eyes.
 
@@ -286,27 +296,29 @@ That sounds like a terrible plan.
 
 Unless your face can detect electricity.
 
-The hunter is a platypus.
+The hunter is a platypus. If a platypus could talk, it might explain. Excuse me, platypus? Have you got a minute?
 
-Its bill contains receptors that detect tiny electrical signals produced by other living things. It can also sense movement and pressure.
+PLATYPUS: A minute? I'm on my dinner break. Make it quick.
 
-Imagine trying to find a shrimp under dark water, where seeing is difficult. The platypus has a way of gathering information that a human face simply does not have.
+How do you find dinner with your eyes shut?
 
-This is real biology, although it sounds like equipment from a spy story.
+PLATYPUS: With my bill. Living things give off tiny electric signals, even a shrimp under a stone. My bill picks them up. I can feel movement in the water too.
 
-The animal does not need to zap its dinner. Detecting electricity is different from making an electric shock.
+Do you zap them?
 
-It is more like receiving a secret message.
+PLATYPUS: No zapping! I just listen. It's like a secret message that says: dinner, this way.
 
-A platypus feeds on small water animals, including insect larvae, worms and crustaceans. Its webbed front feet help drive it through the water, while its broad tail has another useful job: storing fat.
+What's on the menu?
 
-And the surprises do not end there.
+PLATYPUS: Insect larvae, worms, little shrimps. I paddle with my webbed front feet, and I keep spare fat in my tail.
 
-It has fur.
+And is it true you hatched from an egg?
 
-Its mother produces milk.
+PLATYPUS: True! I've got fur, my mum fed me milk, and I still started out as an egg.
 
-Yet she lays eggs.
+[SFX — river, stop]
+
+Thank you, platypus. It sounds like equipment from a spy story, but it is real biology.
 
 Platypuses and echidnas belong to the group of egg-laying mammals called monotremes. Being a mammal does not always mean having babies in the way a dog or a person does.
 
@@ -325,6 +337,8 @@ If we later watch from a safe riverbank, the best tools are patience and quiet. 
 For now, imagine designing your own river explorer.
 
 Would you give it a lamp? A camera? Whiskers?
+
+[PAUSE — 3 SECONDS]
 
 A platypus comes with a different answer.
 
