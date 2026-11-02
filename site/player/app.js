@@ -8,7 +8,7 @@
 // plays that stop now.
 
 const CACHE = "audio-tours";
-const MAX_ACCURACY = 150; // metres; worse fixes are shown but never trigger
+const MAX_ACCURACY = 150; // metres; worse fixes are shown but never trigger (walking tours need ~40: tasks/007)
 const $ = (sel) => document.querySelector(sel);
 
 const S = {
@@ -308,7 +308,7 @@ function simulate(factor) {
   }
   const path = [...(S.tour.route.outbound || []), ...(S.tour.route.return || [])];
   let i = 0;
-  const speed = 22; // m/s, about 80 km/h
+  const speed = 22; // m/s, about 80 km/h (walking tours: ~1.4, tasks/007)
   S.sim = { factor };
   S.sim.timer = setInterval(() => {
     let budget = speed * factor * 0.5;
