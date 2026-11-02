@@ -46,6 +46,20 @@ constant must match, and `tests/test_publish.py` checks that they do.
 | `audio` | string, optional | `build/<id>.mp3` | Path relative to the tour folder, e.g. `audio/stop-1-105ddfb9.mp3`. The 8 hex digits are a content hash, so a re-master gets a new URL. Missing if the stop isn't mastered yet. |
 | `bytes` | integer, optional | | Size of the audio file. |
 | `duration` | number, optional | | Length in seconds, to 0.1 s. |
+| `song` | object, optional | `[stops.<id>.song]` | A song to play on Spotify after the stop (task 006), see below. |
+
+### Song
+
+| Field | Type | From | Meaning |
+| --- | --- | --- | --- |
+| `title` | string | `title` | The song's title, as on Spotify (`tour check` verifies it). |
+| `artist` | string | `artist` | |
+| `spotify` | string | `spotify` | `https://open.spotify.com/track/<id>`, without `intl-xx/` or a `?si=` tag. On Android it opens the Spotify app at the track. |
+| `length` | integer | `length` (`"m:ss"` in tour.toml) | The song's length in **seconds**. The player shows ▶ Play on Spotify only if the next trigger is more than `length + 60` s away. |
+| `why` | string | `why` | One line for the screen: why this song is here. |
+
+The player escapes the song fields, so they may contain `&` or `<`. Publish refuses a song table
+with a missing field, a link that isn't a track, or a length it can't read.
 
 The player inserts `title` and `place` into the page as HTML. Keep them plain text, without `<`
 or `&`.
@@ -61,7 +75,6 @@ These are planned by open tasks. Each one is optional, so none of them bumps the
 | Field | Task | Meaning |
 | --- | --- | --- |
 | stop `nav`, `route.end` | [003](../tasks/003-maps-route-from-stop.md) | Where to navigate to for each stop, and the trip's end point, for Google Maps links. |
-| stop `song` | [006](../tasks/006-spotify-songs.md) | Song title, artist and Spotify link, shown after the stop's audio. |
 | `order`, `max_accuracy`, `sim_speed` | [007](../tasks/007-walking-tours.md) | Walking tours: any-order stops, the GPS accuracy threshold and the simulation speed, copied from `[player]`. |
 
 ## Pages written next to it

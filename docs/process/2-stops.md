@@ -21,7 +21,9 @@ wider than you need. Research (3-research.md) decides which ones carry a story.
 - **Spacing.** Allow the story's length plus about a minute of quiet between stops. At 80 km/h,
   a 3-minute stop needs about 4–5 km of road. A stop with a song segment (006) needs another
   30–60 seconds of road, and the song itself plays outside the tour, so allow its length too if
-  the next trigger shouldn't fire while Spotify has the screen.
+  the next trigger shouldn't fire while Spotify has the screen. The player offers
+  **▶ Play on Spotify** only if the next trigger is more than the song's length plus 60 s
+  away at the current speed (at least 8 m/s), and otherwise says "Save for later".
 - **Avoid quiet stretches** (1-route.md, step 4).
 - **Out-and-back roads.** Stops play in sequence, and only the next two unplayed stops are
   armed (`lookahead`). A return-leg stop at the same place as an outbound one stays silent on

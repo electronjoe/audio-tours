@@ -20,7 +20,7 @@ import shutil
 from pathlib import Path
 from string import Template
 
-from . import audio, config
+from . import audio, config, songs
 from .script import load_tracks
 
 SITE_DIR = config.REPO_ROOT / "site"
@@ -49,6 +49,8 @@ def publish(tour: config.Tour, site_dir: Path = SITE_DIR) -> None:
         stop = {"id": sid, "n": n, "title": t.title, "lat": s["lat"], "lon": s["lon"],
                 "radius": s.get("radius", 400), "place": s.get("place", ""),
                 "strict": s.get("strict", False)}
+        if "song" in s:
+            stop["song"] = songs.to_json(sid, s["song"])  # tasks/006
         mp3 = tour.build / f"{sid}.mp3"
         old = previous.get(sid, {})
         if mp3.exists():
