@@ -1,7 +1,9 @@
 # Production settings for the Hobart -> Russell Falls tour (2 November 2026).
 
-[book]
+[tour]
 title = "Hobart to Russell Falls"
+short_name = "Russell Falls"   # home-screen label
+theme_color = "#14532d"
 artist = "Audio Tours"
 year = 2026
 

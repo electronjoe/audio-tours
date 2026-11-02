@@ -1,0 +1,62 @@
+<!doctype html>
+<!-- site/<slug>/index.html is written from site/player/tour.html by `tour publish`; edit the template. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="${theme_color}">
+<title>${title}</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="../player/icon-192.png">
+<link rel="stylesheet" href="../player/style.css">
+</head>
+<body>
+<header>
+  <h1 id="title">${title}</h1>
+  <div id="status" class="status"></div>
+</header>
+<main>
+  <button id="start" class="big">Start tour</button>
+  <section id="dl-card" class="card dl">
+    <div class="sub">Download the audio while you have signal, so the tour works offline.</div>
+    <button id="download" class="wide">Download tour for offline</button>
+  </section>
+  <section id="now" class="card idle">
+    <div class="label">Now playing</div>
+    <div id="now-title" class="title">Tour not started</div>
+    <div id="now-sub" class="sub"></div>
+    <div class="bar"><div id="now-bar"></div></div>
+    <button id="tap-play" class="primary wide" hidden>▶ Tap to play</button>
+    <div id="now-controls" class="controls" hidden>
+      <button id="pause">Pause</button>
+      <button id="skip">Skip</button>
+    </div>
+  </section>
+  <section id="next" class="card"></section>
+  <h2>Stops in order</h2>
+  <div id="stops"></div>
+  <p class="hint">Tap a stop to play it now or open it in Google Maps.</p>
+  <details id="more" class="card">
+    <summary>More</summary>
+    <p class="help">Keep this page open on screen while you drive; navigation can run in the
+      background. Stops play in order and never interrupt each other: if two trigger close
+      together, the second waits. <b>Start here</b> plays a stop now and continues the sequence from it.</p>
+    <details id="map-box">
+      <summary>Route sketch</summary>
+      <svg id="map" role="img" aria-label="Route sketch with stops"></svg>
+    </details>
+    <details>
+      <summary>Plain audio files (if the player fails)</summary>
+      <p class="help">Each opens in the phone's own audio player.</p>
+      <ol id="files" class="files"></ol>
+    </details>
+    <section class="tools">
+      <button id="sim" hidden>Simulate drive</button>
+      <button id="reset">Reset tour</button>
+    </section>
+  </details>
+</main>
+<div id="toast" hidden></div>
+<script src="../player/app.js"></script>
+</body>
+</html>

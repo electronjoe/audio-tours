@@ -1,6 +1,6 @@
 # Script format
 
-The contract between whoever writes a book's script and the render pipeline. A draft that
+The contract between whoever writes a tour's script and the render pipeline. A draft that
 follows it parses with no surprises. Nothing gets spoken by accident, and no track or pause is
 silently skipped.
 
@@ -8,16 +8,17 @@ To use it:
 
 1. Paste the prompt below into the chat or tool that writes the script, after the request for
    the story itself.
-2. Save the result as `books/<slug>/source/working-draft.md`.
-3. Run `uv run audiobook check <slug>`. It lists every line that breaks the contract and exits
+2. Save the result as `tours/<slug>/source/working-draft.md`.
+3. Run `uv run tour check <slug>`. It lists every line that breaks the contract and exits
    non-zero on errors. `render` and `master` refuse a draft that has errors.
 
 - **Errors** mean the parse is wrong: a track heading the parser can't read, a bracketed cue
   or list that would be read aloud, or no tracks at all. Fix them in the draft.
-- **Warnings** are style the narrator may trip on, such as digits or symbols. Gate Pā rendered
-  fine with years written as digits, so treat warnings as things to listen for, not blockers.
+- **Warnings** are style the narrator may trip on, such as digits or symbols. Narration usually
+  renders fine with years written as digits, so treat warnings as things to listen for, not
+  blockers.
 
-The parser (`src/audiobook/script.py`) also accepts an en dash or a hyphen where the contract
+The parser (`src/audiotour/script.py`) also accepts an en dash or a hyphen where the contract
 says em dash, since models often swap them. The prompt still asks for the em dash.
 `tests/test_script.py` checks that the example in the prompt passes with no errors or warnings,
 so the prompt can't drift from the parser.
@@ -25,27 +26,25 @@ so the prompt can't drift from the parser.
 ## Prompt
 
 ````markdown
-Output the finished audiobook script as one Markdown document in exactly the format below.
+Output the finished audio tour script as one Markdown document in exactly the format below.
 A program reads it: anything that breaks these rules is either spoken aloud by mistake or
 silently dropped, so follow them exactly.
 
 ## Structure
 
-1. The first line is `# <Book title>`.
+1. The first line is `# <Tour title>`.
 2. Material before, between or after the tracks (subtitle, narrator notes, sources,
    pronunciation guide, audio notes) is never spoken. Put each piece under its own `## `
    heading that does NOT start with `Script:`.
 3. Each track is one section whose heading line is exactly:
    `## Script: <Label> — <Title>`
-   - <Label> is a word plus a number written in digits, such as `Chapter 1`, `Scene 2` or
-     `Workshop 1`, or a single word for an unnumbered track, such as `Introduction` or
-     `Afterword`. Number each kind of track 1, 2, 3, ... in order.
+   - Each track is one stop of the tour. <Label> is `Stop` and the stop number in digits,
+     such as `Stop 1`, numbered 1, 2, 3, ... in the order the stops play.
    - The separator is a space, an em dash (—, U+2014), then a space. Never a hyphen (-) or
      an en dash (–).
    - <Title> is the plain title: no timings, brackets or final punctuation.
-   - The player announces each track as "<Label in words>. <Title>." (for example
-     "Scene Two. The bay and its people."), so don't repeat the label or title as the first
-     line of the narration.
+   - The narrator announces each track's title before it (for example "The bay and its
+     people."), so don't repeat the label or title as the first line of the narration.
 4. Optionally, the line straight after a track heading may be a length note in italics that
    starts with "About", e.g. `*About 210 words, about 1.5 minutes.*` It is not spoken. Don't
    start any other italic paragraph with "About".
@@ -82,35 +81,35 @@ pointless there.
 ## Example
 
 ```
-# Old Tom and the Bargain of Twofold Bay
+# Hobart to the Falls
 
-Audiobook script · about 2,000 spoken words
+Audio tour script · two stops
 
 ## Narrator notes
 
-Confirm the pronunciation of Thaua and beowa with a Thaua source before recording.
+Confirm the pronunciation of Tyenna before recording.
 
-## Script: Scene 1 — The splash
+## Script: Stop 1 — The Bridge over the Derwent
 
-*About 130 words, about 1 minute.*
+*About 40 words, about 20 seconds.*
 
-A tail rises out of the sea and comes down hard. Slap.
+Up ahead, the road crosses the River Derwent.
 
-Why would anyone row toward a killer whale?
+How do you think people crossed it before there was a bridge?
 
 [PAUSE — 3 SECONDS]
 
-These people were not running away from it. They were answering it.
+Keep your answer in mind. We will find out soon.
 
-## Script: Scene 2 — The bay and its people
+## Script: Stop 2 — The Town by the River
 
-Twofold Bay is on the south coast of New South Wales, beside the town of Eden.
+New Norfolk sits beside the same river, further upstream.
 
 ## Pronunciation
 
 | Word | Guide | Source | Confirmed |
 | --- | --- | --- | --- |
-| Thaua | ... | ... | no |
+| Tyenna | ... | ... | no |
 ```
 
 ## Before you reply, check

@@ -8,6 +8,7 @@
 // plays that stop now.
 
 const CACHE = "audio-tours";
+const SCHEMA = 1; // the tour.json format this player reads (docs/tour-json.md)
 const MAX_ACCURACY = 150; // metres; worse fixes are shown but never trigger (walking tours need ~40: tasks/007)
 const $ = (sel) => document.querySelector(sel);
 
@@ -495,6 +496,9 @@ function render() {
 async function main() {
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("../sw.js", { scope: "../" }).catch(() => {});
   S.tour = await (await fetch("tour.json", { cache: "no-cache" })).json();
+  // docs/tour-json.md. A missing schema is a tour.json from before it was added: read it as 1.
+  const schema = S.tour.schema ?? SCHEMA;
+  if (schema !== SCHEMA) throw new Error(`it needs a newer player (tour.json schema ${schema}, this player reads ${SCHEMA}). Reload while online.`);
   S.tour.lookahead ||= 2;
   document.title = S.tour.title;
   $("#title").textContent = S.tour.title;

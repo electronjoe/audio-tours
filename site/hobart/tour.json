@@ -1,6 +1,8 @@
 {
+ "schema": 1,
  "slug": "hobart",
  "title": "Hobart to Russell Falls",
+ "mode": "drive",
  "lookahead": 2,
  "stops": [
   {

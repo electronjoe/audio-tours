@@ -1,6 +1,6 @@
 # 002: Reusable player, separate from per-tour content
 
-Status: todo · Priority: medium · Raised: 2026-11-02 (Hobart road test)
+Status: done · Priority: medium · Raised: 2026-11-02 (Hobart road test)
 
 ## Why
 
@@ -48,8 +48,38 @@ release overhead for no gain yet. Make the boundary explicit instead:
 
 ## Acceptance
 
-- [ ] Deleting `site/hobart/index.html` and the manifest, then running `uv run tour publish hobart`,
-      recreates them, and the player works unchanged (`tests/player_drive.py` passes).
-- [ ] A second, throwaway tour can be published with no hand-written files under `site/`.
-- [ ] `site/index.html` lists both tours.
-- [ ] `docs/tour-json.md` exists, and the player checks `schema`.
+- [x] Deleting `site/hobart/index.html` and the manifest, then running `uv run tour publish hobart`,
+      recreates them, and the player works unchanged (`tests/player_drive.py` passes; run in the group merge).
+- [x] A second, throwaway tour can be published with no hand-written files under `site/`.
+- [x] `site/index.html` lists both tours (`tests/test_publish.py`, in temporary directories).
+- [x] `docs/tour-json.md` exists, and the player checks `schema`.
+
+## As built (2026-11-02)
+
+- **Templates** in `site/player/`: `tour.html` (the page; `${title}`, `${theme_color}`),
+  `tour.webmanifest` (`${name}`, `${short_name}`, `${theme_color}`) and `home.html` (the
+  tour list). `tour publish <slug>` writes `tour.json`, the audio, the tour's page and
+  manifest, then `site/index.html`. **`uv run tour pages`** rewrites every published tour's
+  page and the list without touching audio. Run it after editing a template.
+  `tests/test_publish.py` fails if the committed Hobart pages don't match the templates.
+- **`[tour]`** in `tour.toml` holds `title`, `short_name` (home-screen label, default: the
+  title), `theme_color` (default `#14532d`), `artist` and `year`. `[book]` is still read, with
+  a one-line note to rename it. Hobart now uses `[tour]`.
+- **Generated page:** the real title is filled into `<title>` and `<h1>`; `app.js` still
+  sets it as well. Hobart's page and manifest are byte-identical to the hand-written ones
+  apart from that and a one-line "generated from" comment.
+- **`tour.json`** gains `"schema": 1` (first key) and `"mode"` (`[player].mode`, default
+  `drive`; the player ignores it until 007). Adding a field never bumps the schema. The player
+  treats a missing `schema` as 1 and refuses any other value with "needs a newer player ...
+  Reload while online" (`docs/tour-json.md`).
+- **Tour list:** one card per `site/*/tour.json`, sorted by title: "Drive · 8 stops · 24 min".
+  Folders without a `tour.json` (the player, lab pages) are skipped.
+- **Publish keeps committed audio:** if `build/<stop>.mp3` is missing (a fresh clone or
+  worktree), publish keeps the stop's already-published audio instead of deleting it.
+- **Rename:** `config.Tour`, `config.tour()` and `TOURS_DIR`, and `tour` locals and CLI
+  arguments throughout. `Book`, `book` and `BOOKS_DIR` remain as deprecated aliases. The ID3
+  genre is now "Audio tour" (applies on the next `tour master`). Spend cache keys are
+  unchanged (`tour render hobart stop-1 -n` shows every chunk cached).
+- `docs/script-format.md` now describes tours (`tours/<slug>`, `uv run tour check`,
+  `Stop N` labels, a tour example).
+- Deferred: `tour new <slug>`, until 004 and 005 settle the `plan.md` and draft headers.
