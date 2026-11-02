@@ -60,23 +60,23 @@ def paragraph_gap(items: list[dict]) -> float:
     return min(1.5, max(0.4, statistics.median(gaps))) if gaps else 0.8
 
 
-def sfx_file(book: config.Book, name: str, variant: int | None = None) -> Path:
-    d = book.settings["sfx"][name]
-    path = book.build / "sfx" / f"{name}-{variant or d.get('chosen', 1)}.mp3"
+def sfx_file(tour: config.Tour, name: str, variant: int | None = None) -> Path:
+    d = tour.settings["sfx"][name]
+    path = tour.build / "sfx" / f"{name}-{variant or d.get('chosen', 1)}.mp3"
     if not path.exists():
-        raise SystemExit(f"Missing {path.relative_to(config.REPO_ROOT)}; run `tour sfx {book.slug} {name}`")
+        raise SystemExit(f"Missing {path.relative_to(config.REPO_ROOT)}; run `tour sfx {tour.slug} {name}`")
     return path
 
 
-def master_track(book: config.Book, track_id: str) -> Path:
-    track, number = find_track(book, track_id)
-    work = book.build / track.id
+def master_track(tour: config.Tour, track_id: str) -> Path:
+    track, number = find_track(tour, track_id)
+    work = tour.build / track.id
     manifest_path = work / "manifest.json"
     if not manifest_path.exists():
-        raise SystemExit(f"No render for {track.id}; run `tour render {book.slug} {track.id}` first")
+        raise SystemExit(f"No render for {track.id}; run `tour render {tour.slug} {track.id}` first")
     manifest = json.loads(manifest_path.read_text())
-    m = book.settings.get("master", {})
-    cues = book.settings.get("tracks", {}).get(track.id, {})
+    m = tour.settings.get("master", {})
+    cues = tour.settings.get("tracks", {}).get(track.id, {})
     items = manifest["items"]
     gap = paragraph_gap(items)
 
@@ -84,7 +84,7 @@ def master_track(book: config.Book, track_id: str) -> Path:
     t = m.get("head_seconds", 0.5)
     sting = None
     if m.get("sting") and cues.get("sting", True):
-        sting_path = sfx_file(book, m["sting"])
+        sting_path = sfx_file(tour, m["sting"])
         sting = (sting_path, t)
         t += audio.duration(sting_path) + m.get("sting_gap", 0.6)
 
@@ -131,13 +131,13 @@ def master_track(book: config.Book, track_id: str) -> Path:
             g.add(path, f"{FORMAT},volume={gain:.2f}dB,{delay(at)}")
             timeline.insert(0, {"sfx": path.name, "at": round(at, 2), "gain_db": round(gain, 1)})
         for bed in cues.get("beds", []):
-            path = sfx_file(book, bed["sfx"], bed.get("variant"))
+            path = sfx_file(tour, bed["sfx"], bed.get("variant"))
             start = paragraphs[bed["from_paragraph"] - 1][0] + bed.get("start_offset", 0.0)
             end = paragraphs[bed["to_paragraph"] - 1][1] + bed.get("end_offset", 0.5)
             span = end - start
             fade_in, fade_out = bed.get("fade_in", 1.5), min(bed.get("fade_out", 3.0), span)
             gain = voice_lufs + bed["level_db"] - audio.loudness(path)
-            loop = book.settings["sfx"][bed["sfx"]].get("loop", False)
+            loop = tour.settings["sfx"][bed["sfx"]].get("loop", False)
             chain = (
                 f"{'' if loop else 'apad,'}atrim=duration={span:.3f},asetpts=PTS-STARTPTS,{FORMAT},"
                 f"afade=t=in:d={fade_in},afade=t=out:st={span - fade_out:.3f}:d={fade_out},"
@@ -158,15 +158,15 @@ def master_track(book: config.Book, track_id: str) -> Path:
             f":measured_LRA={measured['input_lra']}:measured_thresh={measured['input_thresh']}"
             f":offset={measured['target_offset']}:linear=true,aresample=44100"
         )
-        out = book.build / f"{track.id}.mp3"
-        info = book.settings.get("book", {})
+        out = tour.build / f"{track.id}.mp3"
+        info = tour.info
         tags = {
             "title": f"{track.label}: {track.title}",
-            "track": f"{number}/{len(load_tracks(book.draft))}",
-            "album": info.get("title", book.slug),
+            "track": f"{number}/{len(load_tracks(tour.draft))}",
+            "album": info.get("title", tour.slug),
             "artist": info.get("artist", ""),
             "album_artist": info.get("artist", ""),
-            "genre": "Audiobook",
+            "genre": "Audio tour",
             "date": str(info.get("year", "")),
         }
         meta = [a for k, v in tags.items() if v for a in ("-metadata", f"{k}={v}")]
@@ -187,7 +187,7 @@ def master_track(book: config.Book, track_id: str) -> Path:
 
 
 def chapters_metadata(title: str, chapters: list[tuple[str, float]]) -> str:
-    """An ffmetadata file: the book title and one chapter per (title, duration) in order."""
+    """An ffmetadata file: the tour title and one chapter per (title, duration) in order."""
     def esc(s: str) -> str:
         return "".join("\\" + c if c in "=;#\\\n" else c for c in s)
 
@@ -200,33 +200,33 @@ def chapters_metadata(title: str, chapters: list[tuple[str, float]]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def combine_book(book: config.Book) -> Path:
-    """Join every mastered track, in book order, into one MP3 with chapter markers.
+def combine_tour(tour: config.Tour) -> Path:
+    """Join every mastered track, in tour order, into one MP3 with chapter markers.
 
     The tracks are already mastered to the same loudness and format, so they are
     stream-copied (no second encode). Each track's own head and tail silence
     makes the gap between chapters.
     """
-    tracks = load_tracks(book.draft)
-    files = [book.build / f"{t.id}.mp3" for t in tracks]
+    tracks = load_tracks(tour.draft)
+    files = [tour.build / f"{t.id}.mp3" for t in tracks]
     missing = [t.id for t, f in zip(tracks, files) if not f.exists()]
     if missing:
-        raise SystemExit(f"Not mastered yet: {', '.join(missing)}; run `tour master {book.slug} <track>`")
-    info = book.settings.get("book", {})
-    title = info.get("title", book.slug)
+        raise SystemExit(f"Not mastered yet: {', '.join(missing)}; run `tour master {tour.slug} <track>`")
+    info = tour.info
+    title = info.get("title", tour.slug)
     chapters = [(f"{t.label}: {t.title}", audio.duration(f)) for t, f in zip(tracks, files)]
-    out = book.build / f"{book.slug}-complete.mp3"
+    out = tour.build / f"{tour.slug}-complete.mp3"
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         (tmp / "list.txt").write_text("".join(f"file '{f}'\n" for f in files))
         (tmp / "meta.txt").write_text(chapters_metadata(title, chapters))
         tags = {"album": title, "artist": info.get("artist", ""), "album_artist": info.get("artist", ""),
-                "genre": "Audiobook", "date": str(info.get("year", "")), "track": "1/1"}
+                "genre": "Audio tour", "date": str(info.get("year", "")), "track": "1/1"}
         meta = [a for k, v in tags.items() if v for a in ("-metadata", f"{k}={v}")]
         audio.run(["ffmpeg", "-hide_banner", "-y", "-f", "concat", "-safe", "0", "-i", str(tmp / "list.txt"),
                    "-i", str(tmp / "meta.txt"), "-map", "0:a", "-map_metadata", "1", "-map_chapters", "1",
                    "-c", "copy", "-id3v2_version", "3", *meta, str(out)])
     total = audio.duration(out)
-    print(f"{book.slug}: {len(files)} tracks, {total / 60:.1f} min, {len(chapters)} chapter markers")
+    print(f"{tour.slug}: {len(files)} tracks, {total / 60:.1f} min, {len(chapters)} chapter markers")
     print(f"  -> {out.relative_to(config.REPO_ROOT)}")
     return out

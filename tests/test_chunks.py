@@ -1,7 +1,7 @@
 import pytest
 
 from audiotour.chunks import Chunk, Gap, apply_overrides, balanced_groups, context, plan_track, spoken_title
-from audiotour.config import BOOKS_DIR
+from audiotour.config import TOURS_DIR
 from audiotour.script import Pause, Text, Track, load_tracks
 
 
@@ -45,7 +45,7 @@ def test_context_uses_neighbouring_paragraphs():
 
 
 def test_stop1_plan():
-    ch01 = load_tracks(BOOKS_DIR / "hobart" / "source" / "working-draft.md")[0]
+    ch01 = load_tracks(TOURS_DIR / "hobart" / "source" / "working-draft.md")[0]
     chunks = [x for x in plan_track(ch01, [], 1500, False) if isinstance(x, Chunk)]
     assert len(chunks) == 2
     assert all(800 <= len(c.text) <= 1500 for c in chunks)

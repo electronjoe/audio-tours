@@ -21,25 +21,25 @@ DEFAULT_MAX_CHUNK = 1500
 DEFAULT_CONTEXT = 600
 
 
-def find_track(book: config.Book, track_id: str) -> tuple[Track, int]:
-    """The track and its 1-based position in the book. Refuses a draft that fails the check."""
-    errors = [p for p in check_file(book.draft) if p.error]
+def find_track(tour: config.Tour, track_id: str) -> tuple[Track, int]:
+    """The track and its 1-based position in the tour. Refuses a draft that fails the check."""
+    errors = [p for p in check_file(tour.draft) if p.error]
     if errors:
         raise SystemExit(
-            f"{book.draft} has {len(errors)} script error(s); see `tour check {book.slug}`"
+            f"{tour.draft} has {len(errors)} script error(s); see `tour check {tour.slug}`"
         )
-    tracks = load_tracks(book.draft)
+    tracks = load_tracks(tour.draft)
     for n, t in enumerate(tracks, 1):
         if t.id == track_id:
             return t, n
     raise SystemExit(f"No track {track_id}; known: {', '.join(t.id for t in tracks)}")
 
 
-def paragraph_voices(book: config.Book, track: Track) -> dict[int, str]:
+def paragraph_voices(tour: config.Tour, track: Track) -> dict[int, str]:
     """``[tracks.<id>.voices]`` as 0-based paragraph -> voice name. Unlisted paragraphs are
     the narrator's. Refuses unknown voices, out-of-range or doubly assigned paragraphs."""
-    listed = book.settings.get("tracks", {}).get(track.id, {}).get("voices", {})
-    known = book.settings.get("voices", {})
+    listed = tour.settings.get("tracks", {}).get(track.id, {}).get("voices", {})
+    known = tour.settings.get("voices", {})
     out: dict[int, str] = {}
     for name, numbers in listed.items():
         if name not in known:
@@ -53,20 +53,20 @@ def paragraph_voices(book: config.Book, track: Track) -> dict[int, str]:
     return out
 
 
-def plan(book: config.Book, track: Track) -> list[Chunk | Gap]:
-    render = book.settings.get("render", {})
+def plan(tour: config.Tour, track: Track) -> list[Chunk | Gap]:
+    render = tour.settings.get("render", {})
     return plan_track(
         track,
-        book.overrides.get("replace", []),
+        tour.overrides.get("replace", []),
         render.get("max_chunk_chars", DEFAULT_MAX_CHUNK),
         render.get("announce_titles", True),
-        paragraph_voices(book, track),
+        paragraph_voices(tour, track),
         render.get("title_label", True),
     )
 
 
-def tts_request(book: config.Book, track_id: str, items: list, position: int) -> dict:
-    s = book.settings
+def tts_request(tour: config.Tour, track_id: str, items: list, position: int) -> dict:
+    s = tour.settings
     chunk = items[position]
     prev, nxt = context(items, position, s.get("render", {}).get("context_chars", DEFAULT_CONTEXT))
     request = {
@@ -80,7 +80,7 @@ def tts_request(book: config.Book, track_id: str, items: list, position: int) ->
     }
     if s["narration"].get("voice_settings"):
         request["voice_settings"] = s["narration"]["voice_settings"]
-    take = book.overrides.get("takes", {}).get(track_id, {}).get(chunk.name, 1)
+    take = tour.overrides.get("takes", {}).get(track_id, {}).get(chunk.name, 1)
     if take > 1:  # a retake is a new request, so it gets a new cache key
         request["take"] = take
     return request
@@ -125,10 +125,10 @@ def refine(times: list[list[float]], mp3: Path) -> tuple[list[list[float]], list
     return times, [round(x, 3) for x in speech], gaps
 
 
-def render_track(book: config.Book, track_id: str, guard: Guard, dry_run: bool) -> Path | None:
-    track, number = find_track(book, track_id)
-    items = plan(book, track)
-    requests = {i: tts_request(book, track.id, items, i) for i, x in enumerate(items) if isinstance(x, Chunk)}
+def render_track(tour: config.Tour, track_id: str, guard: Guard, dry_run: bool) -> Path | None:
+    track, number = find_track(tour, track_id)
+    items = plan(tour, track)
+    requests = {i: tts_request(tour, track.id, items, i) for i, x in enumerate(items) if isinstance(x, Chunk)}
 
     print(f"{track.id}: {track.label} — {track.title}")
     todo = 0
@@ -149,7 +149,7 @@ def render_track(book: config.Book, track_id: str, guard: Guard, dry_run: bool) 
     if todo:
         guard.approve(f"render {track.id}", todo)
     guard.assume_yes = True  # the track was approved as a whole above
-    out_dir = book.build / track.id
+    out_dir = tour.build / track.id
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest_items = []
     for i, x in enumerate(items):
@@ -175,7 +175,7 @@ def render_track(book: config.Book, track_id: str, guard: Guard, dry_run: bool) 
             "speech": speech,
             "gaps": gaps,
             "chars": len(x.text),
-            "request_id": _request_id(book, req),
+            "request_id": _request_id(tour, req),
         })
     manifest = {
         "track": track.id,
@@ -184,7 +184,7 @@ def render_track(book: config.Book, track_id: str, guard: Guard, dry_run: bool) 
         "title": track.title,
         "items": manifest_items,
     }
-    path = _manifest(book, track.id)
+    path = _manifest(tour, track.id)
     path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
     print(f"  -> {path.relative_to(config.REPO_ROOT)}")
     return path
@@ -199,24 +199,24 @@ def _call_tts(req: dict) -> tuple[bytes, dict]:
     return json.dumps(result).encode(), meta
 
 
-def _request_id(book: config.Book, request: dict) -> str | None:
+def _request_id(tour: config.Tour, request: dict) -> str | None:
     """The API request-id for a cached request, from the ledger (for stitching later)."""
     key = request_key(request)
-    for e in reversed(read_ledger(book)):
+    for e in reversed(read_ledger(tour)):
         if e["key"] == key:
             return e.get("meta", {}).get("request-id")
     return None
 
 
-def _manifest(book: config.Book, track_id: str) -> Path:
-    return book.build / track_id / "manifest.json"
+def _manifest(tour: config.Tour, track_id: str) -> Path:
+    return tour.build / track_id / "manifest.json"
 
 
 # --- Sound effects --------------------------------------------------------------
 
 
-def sfx_requests(book: config.Book, names: list[str]) -> list[tuple[str, int, dict]]:
-    defs = book.settings.get("sfx", {})
+def sfx_requests(tour: config.Tour, names: list[str]) -> list[tuple[str, int, dict]]:
+    defs = tour.settings.get("sfx", {})
     unknown = [n for n in names if n not in defs]
     if unknown:
         raise SystemExit(f"No [sfx.{unknown[0]}] in tour.toml; known: {', '.join(defs)}")
@@ -236,8 +236,8 @@ def sfx_requests(book: config.Book, names: list[str]) -> list[tuple[str, int, di
     return out
 
 
-def generate_sfx(book: config.Book, names: list[str], guard: Guard, max_seconds: float) -> None:
-    requests = sfx_requests(book, names)
+def generate_sfx(tour: config.Tour, names: list[str], guard: Guard, max_seconds: float) -> None:
+    requests = sfx_requests(tour, names)
     todo = [(n, v, r) for n, v, r in requests if not (guard.cache_dir / f"{request_key(r)}.mp3").exists()]
     seconds = sum(r["duration_seconds"] or 0 for _, _, r in todo)
     for name, variant, r in requests:
@@ -250,7 +250,7 @@ def generate_sfx(book: config.Book, names: list[str], guard: Guard, max_seconds:
             raise SystemExit(f"{seconds:g} s exceeds --max-seconds {max_seconds:g}; refusing.")
         guard.approve("sound effects", sum(len(r["text"]) for _, _, r in todo))
         guard.assume_yes = True
-    out_dir = book.build / "sfx"
+    out_dir = tour.build / "sfx"
     out_dir.mkdir(parents=True, exist_ok=True)
     for name, variant, r in requests:
         call = lambda r=r: eleven.sound_effect(

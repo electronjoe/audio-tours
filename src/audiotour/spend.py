@@ -22,7 +22,7 @@ from typing import Callable
 import httpx
 
 from . import eleven
-from .config import Book
+from .config import Tour
 
 
 def request_key(request: dict) -> str:
@@ -41,17 +41,17 @@ def credits_used() -> int | None:
 
 @dataclass
 class Guard:
-    book: Book
+    tour: Tour
     max_chars: int = 2000
     assume_yes: bool = False
 
     @property
     def cache_dir(self) -> Path:
-        return self.book.root / "cache"
+        return self.tour.root / "cache"
 
     @property
     def ledger(self) -> Path:
-        return self.book.root / "ledger.jsonl"
+        return self.tour.root / "ledger.jsonl"
 
     def approve(self, label: str, chars: int) -> None:
         if chars > self.max_chars:
@@ -104,8 +104,8 @@ class Guard:
         return path, False
 
 
-def read_ledger(book: Book) -> list[dict]:
-    path = book.root / "ledger.jsonl"
+def read_ledger(tour: Tour) -> list[dict]:
+    path = tour.root / "ledger.jsonl"
     if not path.exists():
         return []
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]

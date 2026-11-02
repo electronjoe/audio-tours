@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,7 +11,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-BOOKS_DIR = REPO_ROOT / "tours"
+TOURS_DIR = REPO_ROOT / "tours"
 
 load_dotenv(REPO_ROOT / ".env")
 
@@ -23,12 +24,13 @@ def api_key() -> str:
 
 
 @dataclass(frozen=True)
-class Book:
+class Tour:
     slug: str
+    tours_dir: Path = TOURS_DIR  # tests point this at a temporary directory
 
     @property
     def root(self) -> Path:
-        return BOOKS_DIR / self.slug
+        return self.tours_dir / self.slug
 
     @property
     def draft(self) -> Path:
@@ -44,9 +46,33 @@ class Book:
         return _toml(self.root / "tour.toml")
 
     @property
+    def info(self) -> dict:
+        """The ``[tour]`` table: title, short_name, theme_color, artist, year.
+
+        ``[book]`` (the audiobook name) is still read, with a note to rename it.
+        """
+        s = self.settings
+        if "tour" in s:
+            return s["tour"]
+        if "book" in s:
+            if self.slug not in _warned:
+                _warned.add(self.slug)
+                print(f"note: tours/{self.slug}/tour.toml: rename [book] to [tour]; [book] will stop working",
+                      file=sys.stderr)
+            return s["book"]
+        return {}
+
+    @property
+    def title(self) -> str:
+        return self.info.get("title", self.slug)
+
+    @property
     def overrides(self) -> dict:
         """``overrides.toml``: spoken-text replacements and chunk retakes."""
         return _toml(self.root / "overrides.toml")
+
+
+_warned: set[str] = set()
 
 
 def _toml(path: Path) -> dict:
@@ -56,9 +82,15 @@ def _toml(path: Path) -> dict:
         return tomllib.load(f)
 
 
-def book(slug: str) -> Book:
-    b = Book(slug)
-    if not b.root.is_dir():
-        known = ", ".join(sorted(p.name for p in BOOKS_DIR.iterdir() if p.is_dir()))
-        raise SystemExit(f"No book '{slug}' under {BOOKS_DIR}. Known: {known}")
-    return b
+def tour(slug: str) -> Tour:
+    t = Tour(slug)
+    if not t.root.is_dir():
+        known = ", ".join(sorted(p.name for p in TOURS_DIR.iterdir() if p.is_dir()))
+        raise SystemExit(f"No tour '{slug}' under {TOURS_DIR}. Known: {known}")
+    return t
+
+
+# Deprecated audiobook-era names, kept so older code still runs. Use Tour, tour and TOURS_DIR.
+Book = Tour
+book = tour
+BOOKS_DIR = TOURS_DIR

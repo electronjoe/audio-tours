@@ -19,8 +19,8 @@ DEFAULT_MODEL = "eleven_v4"
 
 def cmd_estimate(args: argparse.Namespace) -> None:
     """Character counts per track, so every paid step can be priced first."""
-    book = config.book(args.book)
-    tracks = load_tracks(book.draft)
+    tour = config.tour(args.tour)
+    tracks = load_tracks(tour.draft)
     total_chars = 0
     print(f"{'track':<10} {'words':>6} {'chars':>7} {'pause s':>8} {'~min':>6}  title")
     for t in tracks:
@@ -36,25 +36,25 @@ def cmd_estimate(args: argparse.Namespace) -> None:
             print(f"\n=== {t.id}: {t.title} ===")
             for seg in t.segments:
                 print(f"  {seg}")
-    errors = sum(p.error for p in check_file(book.draft))
+    errors = sum(p.error for p in check_file(tour.draft))
     if errors:
-        print(f"\n{errors} script error(s); see `tour check {book.slug}`", file=sys.stderr)
+        print(f"\n{errors} script error(s); see `tour check {tour.slug}`", file=sys.stderr)
 
 
 def cmd_check(args: argparse.Namespace) -> None:
     """Report everything in the draft that breaks docs/script-format.md; exit 1 on errors."""
-    book = config.book(args.book)
-    problems = check_file(book.draft)
+    tour = config.tour(args.tour)
+    problems = check_file(tour.draft)
     if not any(p.error for p in problems):
-        for t in load_tracks(book.draft):
-            problems += check_voices(t, render.paragraph_voices(book, t))
+        for t in load_tracks(tour.draft):
+            problems += check_voices(t, render.paragraph_voices(tour, t))
         problems.sort(key=lambda p: p.line)
-    path = book.draft.relative_to(config.REPO_ROOT)
+    path = tour.draft.relative_to(config.REPO_ROOT)
     for p in problems:
         where = f"{path}:{p.line}" if p.line else str(path)
         print(f"{where}: {'error' if p.error else 'warning'}: {p.message}")
     errors = sum(p.error for p in problems)
-    tracks = load_tracks(book.draft)
+    tracks = load_tracks(tour.draft)
     print(f"{len(tracks)} tracks, {errors} errors, {len(problems) - errors} warnings")
     if errors:
         sys.exit(1)
@@ -85,8 +85,8 @@ def cmd_voices(args: argparse.Namespace) -> None:
             print(f"    preview: {v['preview_url']}")
 
 
-def passage(book: config.Book, track_id: str, paragraphs: int) -> str:
-    tracks = {t.id: t for t in load_tracks(book.draft)}
+def passage(tour: config.Tour, track_id: str, paragraphs: int) -> str:
+    tracks = {t.id: t for t in load_tracks(tour.draft)}
     if track_id not in tracks:
         raise SystemExit(f"No track {track_id}; known: {', '.join(tracks)}")
     return "\n\n".join(tracks[track_id].paragraphs[:paragraphs])
@@ -98,14 +98,14 @@ def slug(name: str) -> str:
 
 def cmd_audition(args: argparse.Namespace) -> None:
     """Render the same passage (or test sentence) with several voices into build/auditions/."""
-    book = config.book(args.book)
-    text = args.text or passage(book, args.track, args.paragraphs)
+    tour = config.tour(args.tour)
+    text = args.text or passage(tour, args.track, args.paragraphs)
     stem = f"say-{slug(args.text)[:40]}" if args.text else args.track
     voices = [v.split("=", 1) for v in args.voice]
-    guard = Guard(book, max_chars=args.max_chars, assume_yes=args.yes)
+    guard = Guard(tour, max_chars=args.max_chars, assume_yes=args.yes)
     guard.approve(f"audition total ({len(voices)} voices)", len(text) * len(voices))
     guard.assume_yes = True  # the batch was approved as a whole above
-    out_dir = book.build / "auditions"
+    out_dir = tour.build / "auditions"
     out_dir.mkdir(parents=True, exist_ok=True)
     for name, voice_id in voices:
         request = {"kind": "tts", "text": text, "voice_id": voice_id, "model_id": args.model}
@@ -122,11 +122,11 @@ def cmd_audition(args: argparse.Namespace) -> None:
 
 def cmd_design(args: argparse.Namespace) -> None:
     """Voice Design previews reading a script passage; saves MP3s, not voices."""
-    book = config.book(args.book)
-    text = args.text or passage(book, args.track, args.paragraphs)
+    tour = config.tour(args.tour)
+    text = args.text or passage(tour, args.track, args.paragraphs)
     if not 100 <= len(text) <= 1000:
         raise SystemExit(f"Preview text must be 100-1000 chars; got {len(text)}.")
-    guard = Guard(book, max_chars=args.max_chars, assume_yes=args.yes)
+    guard = Guard(tour, max_chars=args.max_chars, assume_yes=args.yes)
     request = {
         "kind": "design",
         "description": args.description,
@@ -141,7 +141,7 @@ def cmd_design(args: argparse.Namespace) -> None:
 
     path, _ = guard.run(f"design {args.name}", request, len(text), call, suffix=".json")
     result = json.loads(path.read_text())
-    out_dir = book.build / "auditions"
+    out_dir = tour.build / "auditions"
     out_dir.mkdir(parents=True, exist_ok=True)
     for i, preview in enumerate(result["previews"], 1):
         out = out_dir / f"{args.track}-design-{slug(args.name)}-{i}.mp3"
@@ -150,7 +150,7 @@ def cmd_design(args: argparse.Namespace) -> None:
 
 
 def cmd_ledger(args: argparse.Namespace) -> None:
-    entries = read_ledger(config.book(args.book))
+    entries = read_ledger(config.tour(args.tour))
     for e in entries:
         cost = "?" if e["credits"] is None else f"{e['credits']:,}"
         print(f"{e['time']}  {e['label']:<36} {e['chars']:>6} chars {cost:>7} credits")
@@ -164,28 +164,32 @@ def cmd_ledger(args: argparse.Namespace) -> None:
 
 def cmd_render(args: argparse.Namespace) -> None:
     """Render a track's narration chunks (with timestamps) and write its manifest."""
-    book = config.book(args.book)
-    guard = Guard(book, max_chars=args.max_chars, assume_yes=args.yes)
-    render.render_track(book, args.track_id, guard, args.dry_run)
+    tour = config.tour(args.tour)
+    guard = Guard(tour, max_chars=args.max_chars, assume_yes=args.yes)
+    render.render_track(tour, args.track_id, guard, args.dry_run)
 
 
 def cmd_sfx(args: argparse.Namespace) -> None:
     """Generate the sound-effect variants defined in tour.toml into build/sfx/."""
-    book = config.book(args.book)
-    guard = Guard(book, max_chars=args.max_chars, assume_yes=args.yes)
-    render.generate_sfx(book, args.names, guard, args.max_seconds)
+    tour = config.tour(args.tour)
+    guard = Guard(tour, max_chars=args.max_chars, assume_yes=args.yes)
+    render.generate_sfx(tour, args.names, guard, args.max_seconds)
 
 
 def cmd_master(args: argparse.Namespace) -> None:
-    master.master_track(config.book(args.book), args.track_id)
+    master.master_track(config.tour(args.tour), args.track_id)
 
 
 def cmd_combine(args: argparse.Namespace) -> None:
-    master.combine_book(config.book(args.book))
+    master.combine_tour(config.tour(args.tour))
 
 
 def cmd_publish(args: argparse.Namespace) -> None:
-    publish.publish(config.book(args.book))
+    publish.publish(config.tour(args.tour))
+
+
+def cmd_pages(_: argparse.Namespace) -> None:
+    publish.pages()
 
 
 def main() -> None:
@@ -193,12 +197,12 @@ def main() -> None:
     sub = parser.add_subparsers(required=True)
 
     p = sub.add_parser("estimate", help="offline: word/character counts per track")
-    p.add_argument("book", help="book slug under books/, e.g. gate-pa")
+    p.add_argument("tour", help="tour slug under tours/, e.g. hobart")
     p.add_argument("-v", "--verbose", action="store_true", help="print parsed segments")
     p.set_defaults(func=cmd_estimate)
 
     p = sub.add_parser("check", help="offline: check the draft against docs/script-format.md")
-    p.add_argument("book", help="book slug under books/, e.g. gate-pa")
+    p.add_argument("tour", help="tour slug under tours/, e.g. hobart")
     p.set_defaults(func=cmd_check)
 
     p = sub.add_parser("account", help="free: plan tier and credits remaining")
@@ -213,7 +217,7 @@ def main() -> None:
     p.set_defaults(func=cmd_voices)
 
     def paid(p: argparse.ArgumentParser, max_chars: int) -> None:
-        p.add_argument("book", help="book slug under books/, e.g. gate-pa")
+        p.add_argument("tour", help="tour slug under tours/, e.g. hobart")
         p.add_argument("--track", default="ch01")
         p.add_argument("--paragraphs", type=int, default=3, help="leading paragraphs to read")
         p.add_argument("--text", help="text to read instead of the track's leading paragraphs")
@@ -235,7 +239,7 @@ def main() -> None:
     p.set_defaults(func=cmd_design)
 
     p = sub.add_parser("render", help="PAID: render a track's narration in chunks")
-    p.add_argument("book")
+    p.add_argument("tour")
     p.add_argument("track_id", help="e.g. ch01")
     p.add_argument("--max-chars", type=int, default=6000, help="refuse above this")
     p.add_argument("-n", "--dry-run", action="store_true", help="show chunks and cost only")
@@ -243,7 +247,7 @@ def main() -> None:
     p.set_defaults(func=cmd_render)
 
     p = sub.add_parser("sfx", help="PAID: generate sound-effect variants from tour.toml")
-    p.add_argument("book")
+    p.add_argument("tour")
     p.add_argument("names", nargs="*", help="[sfx.NAME] entries (default: all)")
     p.add_argument("--max-seconds", type=float, default=120, help="refuse above this much audio")
     p.add_argument("--max-chars", type=int, default=2000, help="refuse prompts above this")
@@ -251,20 +255,23 @@ def main() -> None:
     p.set_defaults(func=cmd_sfx)
 
     p = sub.add_parser("master", help="offline: mix, master and tag a rendered track")
-    p.add_argument("book")
+    p.add_argument("tour")
     p.add_argument("track_id")
     p.set_defaults(func=cmd_master)
 
     p = sub.add_parser("combine", help="offline: join mastered tracks into one MP3 with chapters")
-    p.add_argument("book")
+    p.add_argument("tour")
     p.set_defaults(func=cmd_combine)
 
-    p = sub.add_parser("publish", help="offline: write site/<tour>/ (tour.json + audio) for Pages")
-    p.add_argument("book")
+    p = sub.add_parser("publish", help="offline: write site/<tour>/ (tour.json, audio, page) and the tour list")
+    p.add_argument("tour")
     p.set_defaults(func=cmd_publish)
 
-    p = sub.add_parser("ledger", help="offline: spend recorded for a book")
-    p.add_argument("book")
+    p = sub.add_parser("pages", help="offline: rewrite every published tour's page and the tour list from site/player/ templates")
+    p.set_defaults(func=cmd_pages)
+
+    p = sub.add_parser("ledger", help="offline: spend recorded for a tour")
+    p.add_argument("tour")
     p.set_defaults(func=cmd_ledger)
 
     args = parser.parse_args()
