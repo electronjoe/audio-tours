@@ -54,14 +54,16 @@ a.card { display: block; color: inherit; text-decoration: none; }
 .stop.armed { border: 2px solid var(--accent); }
 .stop.armed .num { border-color: var(--accent); color: var(--accent); }
 .stop.played .num { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
-.stop.played .t, .stop.skipped .t { color: var(--muted); }
-.stop.skipped .num { border-style: dashed; color: var(--skip); }
+.stop.played .t, .stop.skipped .t, .stop.missed .t { color: var(--muted); }
+.stop.skipped .num, .stop.missed .num { border-style: dashed; color: var(--skip); }
+.stop.missed .s { color: var(--queue); }
+.stop.resume .num { border-color: var(--queue); color: var(--queue); }
 #map-box summary { font-weight: 600; cursor: pointer; }
 #map { width: 100%; height: auto; margin-top: 8px; }
 #map .route { fill: none; stroke: var(--muted); stroke-width: 5; }
 #map .route.ret { stroke-dasharray: 12 10; stroke-width: 3; }
 #map .pin circle { fill: var(--accent); fill-opacity: .15; stroke: var(--accent); stroke-width: 3; }
-#map .pin.played circle, #map .pin.skipped circle { stroke: var(--skip); fill: var(--skip); }
+#map .pin.played circle, #map .pin.skipped circle, #map .pin.missed circle { stroke: var(--skip); fill: var(--skip); }
 #map .pin.playing circle { stroke: var(--play); fill: var(--play); fill-opacity: .4; }
 #map .pin text { fill: var(--fg); font: bold 34px system-ui; text-anchor: middle; dominant-baseline: central; }
 #map .me { fill: #ef4444; stroke: #fff; stroke-width: 4; }
@@ -73,3 +75,9 @@ a.card { display: block; color: inherit; text-decoration: none; }
 .files { padding-left: 20px; }
 .files a { color: var(--play); line-height: 2; }
 #more details > summary { cursor: pointer; }
+.offer { margin-top: 12px; }
+.offer .wide { margin-top: 4px; }
+#stale .big { margin: 10px 0 0; }
+.log { padding-left: 20px; font-size: 14px; color: var(--muted); }
+.log li { margin-bottom: 4px; }
+.log b { color: var(--fg); font-weight: 600; }

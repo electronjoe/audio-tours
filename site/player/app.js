@@ -6,20 +6,43 @@
 // interrupts the one playing, and stops it jumps over are marked skipped (still
 // playable by hand). "Start here" is the manual override: it moves the cursor and
 // plays that stop now.
+//
+// Start never plays audio (tasks/001): it arms GPS, and saved progress is offered as
+// Resume. Coarse (network) fixes never trigger. While the page is hidden Chrome sends no
+// GPS (tasks/006), so after a gap the player waits for a fix of ±50 m or better, then
+// offers any stop whose zone the jump crossed as "Passed while you were away" (status
+// `missed`), never auto-playing it. Every trigger, play and ignored fix goes to an event
+// log in localStorage (More → Event log).
 
 const CACHE = "audio-tours";
 const SCHEMA = 1; // the tour.json format this player reads (docs/tour-json.md)
 const MAX_ACCURACY = 150; // metres; worse fixes are shown but never trigger (walking tours need ~40: tasks/007)
+const SETTLE_ACCURACY = 50; // metres; after Start or a gap, the first fix used must be this good (tasks/006)
+const SETTLE_PATIENCE = 30000; // ms; if no fix that good comes for this long, fall back to MAX_ACCURACY
+const AWAY_AFTER = 20000; // ms without a fix that counts as being away, like a hidden page
+const SPEED_HOLD = 10000; // ms after a gap in which no speed is derived from positions
+const STALE_AFTER = 8 * 3600 * 1000; // ms; older saved progress asks "from the beginning or continue?"
+const LOG_SIZE = 30; // event-log entries kept
+const NEAR = 2000; // metres; "Play now" is the green button only this close to the zone
 const $ = (sel) => document.querySelector(sel);
 
 const S = {
   tour: null,
   cursor: 0,
-  status: {}, // stop id -> "played" | "skipped"
+  status: {}, // stop id -> "played" | "skipped" | "missed" (passed while away)
   queue: [], // stops waiting to play
   current: null,
   started: false,
-  fix: null, // {lat, lon, accuracy, speed, time}
+  stale: false, // saved progress older than STALE_AFTER: offer "from the beginning" or "continue"
+  resume: [], // stops that were playing or queued when the page was last closed: offered, not played
+  missed: [], // stops passed while away, offered in the Now card until the next stop starts
+  why: {}, // stop id -> {cause, d, acc}: why it was queued, for the event log
+  fix: null, // the latest fix, shown: {lat, lon, accuracy, speed, time, coarse}
+  last: null, // the latest fix used for triggering (the start of a catch-up segment)
+  away: null, // {since, from, back}: set while hidden or after AWAY_AFTER without a fix
+  holdSpeedUntil: 0, // no position-derived speed before this time (just after a gap)
+  track: [], // the last 2 minutes of used fixes {lat, lon, speed, time}, speed null if unknown
+  log: [], // event log, newest last (also in localStorage)
   cached: new Set(), // stop ids whose audio is in the cache
   wakeLock: null,
   sim: null,
@@ -32,11 +55,13 @@ let objectURL = null;
 // --- persistence --------------------------------------------------------------
 
 const key = () => `tour:${S.tour.slug}`;
+const byId = (id) => stops().find((s) => s.id === id);
 function save() {
   try {
-    // `pending` (the stop playing, then the queue) lets a reload resume where it was.
-    const pending = [S.current, ...S.queue].filter(Boolean).map((s) => s.id);
-    localStorage.setItem(key(), JSON.stringify({ cursor: S.cursor, status: S.status, pending }));
+    // `pending` (an unresumed offer, the stop playing, then the queue) is offered as Resume after a reload.
+    const pending = [...S.resume, S.current, ...S.queue].filter(Boolean).map((s) => s.id);
+    const missed = S.missed.map((s) => s.id);
+    localStorage.setItem(key(), JSON.stringify({ cursor: S.cursor, status: S.status, pending, missed, savedAt: Date.now() }));
   } catch {}
 }
 function load() {
@@ -44,8 +69,28 @@ function load() {
     const saved = JSON.parse(localStorage.getItem(key()) || "{}");
     S.cursor = saved.cursor || 0;
     S.status = saved.status || {};
-    S.queue = (saved.pending || []).map((id) => stops().find((s) => s.id === id)).filter(Boolean);
+    S.resume = (saved.pending || []).map(byId).filter(Boolean);
+    S.missed = (saved.missed || []).map(byId).filter(Boolean);
+    const progress = S.cursor || Object.keys(S.status).length || S.resume.length;
+    // Progress saved before savedAt existed counts as stale.
+    S.stale = Boolean(progress) && Date.now() - (saved.savedAt || 0) > STALE_AFTER;
   } catch {}
+  try {
+    S.log = JSON.parse(localStorage.getItem(`${key()}:log`) || "[]");
+  } catch {}
+}
+
+// --- event log ----------------------------------------------------------------
+// Why each stop started, and the fixes that were ignored, so the next oddity on the road
+// can be diagnosed (tasks/001). Kept in localStorage only.
+
+function logEvent(ev, s, info = {}) {
+  S.log.push({ t: Date.now(), ev, ...(s ? { n: s.n } : {}), ...info });
+  S.log = S.log.slice(-LOG_SIZE);
+  try {
+    localStorage.setItem(`${key()}:log`, JSON.stringify(S.log));
+  } catch {}
+  if ($("#log-box")?.open) renderLog();
 }
 
 // --- geometry -----------------------------------------------------------------
@@ -87,17 +132,21 @@ function advanceTo(i) {
   S.cursor = Math.max(S.cursor, i + 1);
 }
 
-function trigger(i) { // GPS, or the "Play now" button on the Next stop card
+/** Queue stop i by GPS or by hand (the "Play now" button on the Next stop card). */
+function trigger(i, why = { cause: "manual" }) {
   advanceTo(i);
-  enqueue(stops()[i]);
+  enqueue(stops()[i], why);
   save();
 }
 
-function enqueue(s) {
+/** Queue s; it plays now if nothing else is playing. `why` goes to the event log. */
+function enqueue(s, why = { cause: "manual" }) {
   if (busy(s)) return;
   delete S.status[s.id];
+  S.why[s.id] = why;
   S.queue.push(s);
-  if (!S.current) playNext();
+  if (S.current) logEvent("queued", s, why);
+  else playNext();
   render();
 }
 
@@ -109,8 +158,30 @@ function startHere(i) {
   advanceTo(i);
   S.cursor = i + 1;
   delete S.status[s.id];
+  S.why[s.id] = { cause: "manual" };
   save();
   play(s);
+}
+
+/** The Resume offer: play what was playing (and queued) when the page was last closed. */
+function resume() {
+  if (!S.started) start();
+  const list = S.resume;
+  S.resume = [];
+  for (const s of list) enqueue(s, { cause: "resume" });
+  save();
+}
+
+/** A stop starting ends the offers, except that playing one offer leaves the others. */
+function settleOffers(s) {
+  if (S.resume.includes(s) || S.missed.includes(s)) {
+    S.resume = S.resume.filter((x) => x !== s);
+    S.missed = S.missed.filter((x) => x !== s);
+    return;
+  }
+  for (const r of S.resume) if (!S.status[r.id] && !busy(r)) S.status[r.id] = "skipped";
+  S.resume = [];
+  S.missed = [];
 }
 
 function playNext() {
@@ -124,7 +195,9 @@ function playNext() {
 }
 
 async function play(s) {
+  settleOffers(s);
   S.current = s;
+  logEvent("play", s, S.why[s.id] || { cause: "manual" });
   render();
   try {
     if (objectURL) URL.revokeObjectURL(objectURL);
@@ -227,19 +300,92 @@ async function downloadAll() {
 
 // --- GPS, screen ------------------------------------------------------------------
 
-function onFix(lat, lon, accuracy, speed) {
-  const prev = S.fix;
-  const now = Date.now();
-  if (speed == null && prev) {
-    const dt = (now - prev.time) / 1000;
-    if (dt > 0) speed = metres(prev, { lat, lon }) / dt;
-  }
-  S.fix = { lat, lon, accuracy, speed, time: now };
-  if (S.started && accuracy <= MAX_ACCURACY) {
+/** Where p projects onto the segment a→b: t (0 at a, 1 at b) and its distance in metres
+ *  from the segment. Flat-earth maths, fine over a few kilometres. */
+function along(a, b, p) {
+  const M = 111320, k = Math.cos((a.lat * Math.PI) / 180);
+  const bx = (b.lon - a.lon) * k * M, by = (b.lat - a.lat) * M;
+  const px = (p.lon - a.lon) * k * M, py = (p.lat - a.lat) * M;
+  const L = bx * bx + by * by;
+  const t = L ? (px * bx + py * by) / L : 0;
+  const c = Math.max(0, Math.min(1, t));
+  return { t, d: Math.hypot(px - c * bx, py - c * by) };
+}
+
+/** After a gap: mark armed stops whose zone the straight jump from `from` to `to` crossed
+ *  as missed and offer them (tasks/006). A stop counts if its centre lies within
+ *  `radius + 10 % of the jump` of the segment (curves) and between its ends (not one still
+ *  ahead). A stop whose zone holds `to` isn't missed: it triggers as usual. */
+function catchUp(from, to, gap) {
+  const jump = metres(from, to);
+  for (let found = true; found; ) {
+    found = false;
     for (const i of armed()) {
       const s = stops()[i];
-      if (metres(S.fix, s) <= s.radius) trigger(i);
+      if (metres(to, s) <= s.radius) continue;
+      const { t, d } = along(from, to, s);
+      if (t <= 0 || t >= 1 || d > s.radius + 0.1 * jump) continue;
+      S.status[s.id] = "missed";
+      advanceTo(i);
+      S.missed.push(s);
+      logEvent("missed", s, { cause: "catch-up", gap, jump: Math.round(jump), d: Math.round(d) });
+      found = true;
     }
+  }
+}
+
+/** Log a fix that landed in an armed zone but couldn't trigger it, at most once a minute per stop. */
+function logIgnored(cause, fix) {
+  for (const i of armed()) {
+    const s = stops()[i];
+    const d = metres(fix, s);
+    if (d > s.radius || fix.time - (logIgnored.at[s.id] || 0) < 60000) continue;
+    logIgnored.at[s.id] = fix.time;
+    logEvent("ignored", s, { cause, d: Math.round(d), acc: Math.round(fix.accuracy) });
+  }
+}
+logIgnored.at = {};
+
+/** Every fix. `coarse` marks the low-accuracy network fallback: shown, never used. */
+function onFix(lat, lon, accuracy, speed, { coarse = false } = {}) {
+  const prev = S.fix;
+  const now = Date.now();
+  const fix = { lat, lon, accuracy, speed: speed ?? null, time: now, coarse };
+  S.fix = fix;
+  if (!S.started) return render();
+  // No fix for a while counts as being away, like a hidden page.
+  if (!S.away && prev && now - prev.time > AWAY_AFTER) S.away = { since: prev.time, from: S.last };
+  if (coarse) {
+    logIgnored("coarse-ignored", fix);
+    return render();
+  }
+  if (S.away) S.away.back ||= now;
+  // Right after Start or a gap the first fixes are rough and jumpy: wait for a good one.
+  const limit = S.away && now - S.away.back < SETTLE_PATIENCE ? SETTLE_ACCURACY : MAX_ACCURACY;
+  if (accuracy > limit) {
+    logIgnored(S.away ? "settling" : "inaccurate", fix);
+    return render();
+  }
+  if (S.away) {
+    const { since, from, back } = S.away;
+    S.away = null;
+    S.holdSpeedUntil = back + SPEED_HOLD;
+    if (from) {
+      const gap = Math.round((now - since) / 1000);
+      logEvent("back", null, { gap, jump: Math.round(metres(from, fix)), acc: Math.round(accuracy) });
+      catchUp(from, fix, gap);
+    }
+  } else if (fix.speed == null && S.last && now >= S.holdSpeedUntil && now - S.last.time <= AWAY_AFTER) {
+    // Speed from positions only between consecutive used fixes, never across or just after a gap.
+    const dt = (now - S.last.time) / 1000;
+    if (dt > 0) fix.speed = metres(S.last, fix) / dt;
+  }
+  S.last = fix;
+  S.track = [...S.track.filter((f) => now - f.time <= 120000), { lat, lon, speed: fix.speed, time: now }];
+  for (const i of armed()) {
+    const s = stops()[i];
+    const d = metres(fix, s);
+    if (d <= s.radius) trigger(i, { cause: "gps", d: Math.round(d), acc: Math.round(accuracy) });
   }
   render();
 }
@@ -265,7 +411,7 @@ function startGPS() {
         // meanwhile ask for a rough network location so the distances show something.
         S.gpsProblem = "nofix";
         navigator.geolocation.getCurrentPosition(
-          (p) => !S.sim && !S.fix && onFix(p.coords.latitude, p.coords.longitude, p.coords.accuracy, p.coords.speed),
+          (p) => !S.sim && !S.fix && onFix(p.coords.latitude, p.coords.longitude, p.coords.accuracy, p.coords.speed, { coarse: true }),
           () => {},
           { enableHighAccuracy: false, maximumAge: 60000, timeout: 20000 },
         );
@@ -285,18 +431,40 @@ async function keepAwake() {
   render();
 }
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && S.started && !S.wakeLock) keepAwake();
+  if (!S.started) return;
+  // Hidden means no GPS (tasks/006): what happened meanwhile is worked out on return.
+  if (document.visibilityState === "hidden") S.away ||= { since: Date.now(), from: S.last };
+  else if (!S.wakeLock) keepAwake();
 });
 
+/** Arm GPS, keep the screen on and unlock audio. Never plays a stop (tasks/001). */
 function start() {
+  if (S.started) return;
   S.started = true;
-  // A play() inside the tap unlocks audio for later automatic playback.
-  audio.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
-  audio.play().catch(() => {});
+  S.stale = false;
+  S.away = { since: Date.now(), from: null }; // wait for a good first fix; nothing to catch up
+  // A play() inside the tap unlocks audio for later automatic playback. It must not
+  // replace a stop that is already playing (Resume or Play now can call start()).
+  if (!S.current) {
+    audio.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+    audio.play().catch(() => {});
+  }
   keepAwake();
   startGPS();
-  if (S.queue.length && !S.current) playNext(); // resume after a reload
+  logEvent("start");
+  save();
   render();
+}
+
+/** "Start from the beginning" (stale progress): forget every stop's status, then start. */
+function restart() {
+  S.status = {};
+  S.cursor = 0;
+  S.queue = [];
+  S.resume = [];
+  S.missed = [];
+  logEvent("reset");
+  start();
 }
 
 // --- simulation (?sim) ---------------------------------------------------------------
@@ -336,15 +504,32 @@ function toast(msg) {
 function stateOf(s, i) {
   if (S.current === s) return "playing";
   if (S.queue.includes(s)) return "queued";
+  if (S.resume.includes(s)) return "resume";
   if (S.status[s.id]) return S.status[s.id];
   if (armed().includes(i)) return "armed";
   return "upcoming";
 }
-const LABEL = { playing: "Playing", queued: "Queued", played: "Played", skipped: "Skipped", armed: "Listening for", upcoming: "Later" };
+const LABEL = { playing: "Playing", queued: "Queued", played: "Played", skipped: "Skipped", missed: "Passed while away", resume: "Ready to resume", armed: "Listening for", upcoming: "Later" };
+
+/** Resume and "Passed while you were away" offers in the Now card. */
+function renderOffers() {
+  let html = "";
+  if (S.resume.length) {
+    const r = S.resume[0];
+    html += `<button id="resume" class="primary wide">▶ Resume: ${r.n}. ${r.title}</button>`;
+  }
+  for (const s of S.missed) {
+    html += `<div class="offer"><div class="label">Passed while you were away</div>
+      <button class="offer-play wide" data-id="${s.id}">${S.current ? "Queue next" : "▶ Play"}: stop ${s.n}. ${s.title}</button></div>`;
+  }
+  // renderNow runs every second: rewrite only on a change, so the buttons stay tappable.
+  if (renderOffers.html !== html) $("#now-offers").innerHTML = renderOffers.html = html;
+}
 
 function renderNow() {
   const s = S.current;
   const box = $("#now");
+  renderOffers();
   $("#tap-play").hidden = !(S.blocked && S.queue.length);
   if (S.blocked && S.queue.length) {
     box.className = "card blocked";
@@ -357,7 +542,8 @@ function renderNow() {
   if (!s) {
     box.className = "card idle";
     $("#now-title").textContent = S.started ? "Nothing playing" : "Tour not started";
-    $("#now-sub").textContent = S.started ? "Waiting for the next stop" : "Tap Start tour when you set off";
+    $("#now-sub").textContent = !S.started ? "Tap Start tour when you set off"
+      : S.away ? "Waiting for a good GPS fix" : "Waiting for the next stop";
     $("#now-bar").style.width = "0%";
     $("#now-controls").hidden = true;
     return;
@@ -380,9 +566,10 @@ function renderNext() {
   if (queued.length) lines.push(`<div class="queued"><b>Queued to play next:</b> ${queued.join(" → ")}</div>`);
   if (a.length) {
     const s = stops()[a[0]];
-    let dist = "", eta = "", fill = 0;
+    let dist = "", eta = "", fill = 0, near = false;
     if (S.fix) {
       const d = Math.max(0, metres(S.fix, s) - s.radius);
+      near = d <= NEAR;
       dist = d === 0 ? "in the zone" : `${km(d)} to trigger`;
       if (d > 0 && S.fix.speed > 2) eta = ` · ~${Math.max(1, Math.round(d / S.fix.speed / 60))} min`;
       fill = Math.max(0, Math.min(1, 1 - d / 8000));
@@ -391,7 +578,7 @@ function renderNext() {
       <div class="title">${s.n}. ${s.title}</div>
       <div class="sub">${s.place}${dist ? ` · <b>${dist}</b>${eta}` : " · waiting for GPS"}</div>
       <div class="bar"><div style="width:${fill * 100}%"></div></div>
-      <button class="next-now ${S.current ? "" : "primary"} wide" data-i="${a[0]}">${S.current ? "Queue it to play next" : "▶ Play now"}</button>`);
+      <button class="next-now ${S.current || !near ? "" : "primary"} wide" data-i="${a[0]}">${S.current ? "Queue it to play next" : "▶ Play now"}</button>`);
   } else if (!queued.length) {
     lines.push(`<div class="label">Next stop</div><div class="title">${S.cursor >= stops().length ? "End of the tour" : "—"}</div>`);
   }
@@ -433,18 +620,25 @@ function renderStatus() {
   const f = S.fix;
   const withAudio = stops().filter((s) => s.audio).length;
   const all = withAudio > 0 && S.cached.size >= withAudio;
-  const weak = f && f.accuracy > MAX_ACCURACY;
+  const weak = f && (f.coarse || f.accuracy > MAX_ACCURACY);
+  const settling = S.started && f && !weak && S.away;
   const chips = [
     [S.gpsProblem === "denied" ? "GPS blocked (see Permissions)"
       : S.gpsProblem === "nofix" && (!f || weak) ? "GPS: no satellite fix yet (go outside); retrying"
-      : f ? (weak ? `GPS weak (±${Math.round(f.accuracy)} m)` : "GPS ✓") : S.started ? "GPS: waiting…" : "",
-     S.gpsProblem || weak || (S.started && !f)],
+      : f ? (weak ? `GPS weak (±${Math.round(f.accuracy)} m)` : settling ? `GPS settling (±${Math.round(f.accuracy)} m)` : "GPS ✓")
+      : S.started ? "GPS: waiting…" : "",
+     S.gpsProblem || weak || settling || (S.started && !f)],
     [S.started && !S.wakeLock ? "Screen may sleep" : "", true],
     [all ? "Offline ✓" : `Downloaded ${S.cached.size}/${withAudio}`, !all],
     [S.sim ? `Simulating ×${S.sim.factor}` : "", false],
   ];
   $("#status").innerHTML = chips.filter(([c]) => c).map(([c, warn]) => `<span class="${warn ? "warn" : ""}">${c}</span>`).join("");
-  $("#start").hidden = S.started;
+  $("#start").hidden = S.started || S.stale;
+  $("#stale").hidden = S.started || !S.stale;
+  if (S.stale) {
+    const next = stops()[armed()[0] ?? S.cursor];
+    $("#continue").textContent = next ? `Continue (next: stop ${next.n})` : "Continue";
+  }
   $("#dl-card").hidden = all;
   if (!$("#download").disabled) $("#download").textContent = "Download tour for offline";
 }
@@ -473,6 +667,29 @@ function renderMap() {
     out += `<circle class="me" cx="${x}" cy="${y}" r="14"/>`;
   }
   svg.innerHTML = out;
+}
+
+const CAUSE = { gps: "GPS", manual: "tapped", resume: "Resume", "catch-up": "catch-up", "coarse-ignored": "coarse network fix", settling: "first fixes after a gap", inaccurate: "inaccurate fix" };
+function describe(e) {
+  const stop = e.n ? `Stop ${e.n} ` : "";
+  const fix = [e.d != null ? `${km(e.d)} from centre` : "", e.acc != null ? `±${e.acc} m` : ""].filter(Boolean).join(", ");
+  const why = [CAUSE[e.cause] || e.cause, fix].filter(Boolean).join(", ");
+  switch (e.ev) {
+    case "play": return `${stop}started (${why})`;
+    case "queued": return `${stop}queued (${why})`;
+    case "missed": return `${stop}passed while away, offered (catch-up: ${km(e.jump)} jump, ${km(e.d)} from the line)`;
+    case "ignored": return `${stop}not triggered: ${why}`;
+    case "back": return `Back after ${mmss(e.gap)} without GPS: jumped ${km(e.jump)}, ±${e.acc} m`;
+    case "start": return "Tour started (GPS armed, nothing played)";
+    case "reset": return "Progress reset";
+    default: return `${stop}${e.ev}`;
+  }
+}
+function renderLog() {
+  const time = (t) => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  $("#log").innerHTML = S.log.length
+    ? [...S.log].reverse().map((e) => `<li data-ev="${e.ev}" data-cause="${e.cause || ""}"><b>${time(e.t)}</b> ${describe(e)}</li>`).join("")
+    : "<li>Nothing yet.</li>";
 }
 
 function renderFiles() {
@@ -507,6 +724,18 @@ async function main() {
   checkCached();
 
   $("#start").onclick = start;
+  $("#restart").onclick = restart;
+  $("#continue").onclick = start;
+  $("#log-box").addEventListener("toggle", renderLog);
+  $("#now").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (b?.id === "resume") resume();
+    else if (b?.classList.contains("offer-play")) {
+      if (!S.started) start();
+      enqueue(byId(b.dataset.id), { cause: "catch-up" });
+      save();
+    }
+  });
   $("#download").onclick = downloadAll;
   $("#pause").onclick = () => (audio.paused ? audio.play() : audio.pause());
   $("#skip").onclick = skip;
@@ -515,7 +744,7 @@ async function main() {
     const b = e.target.closest("button.next-now");
     if (!b) return;
     if (!S.started) start();
-    trigger(Number(b.dataset.i));
+    trigger(Number(b.dataset.i), { cause: "manual" });
   });
   $("#map-box").addEventListener("toggle", renderMap);
   $("#reset").onclick = () => {
@@ -523,8 +752,11 @@ async function main() {
     S.status = {};
     S.cursor = 0;
     S.queue = [];
+    S.resume = [];
+    S.missed = [];
     audio.pause();
     S.current = null;
+    logEvent("reset");
     save();
     render();
   };
@@ -535,7 +767,7 @@ async function main() {
     const i = Number(b.dataset.i);
     if (!S.started) start();
     if (b.classList.contains("here")) startHere(i);
-    else if (b.classList.contains("queue")) enqueue(stops()[i]);
+    else if (b.classList.contains("queue")) enqueue(stops()[i], { cause: "manual" });
     else if (b.classList.contains("unplay")) {
       delete S.status[stops()[i].id];
       S.cursor = Math.min(S.cursor, i);
@@ -551,7 +783,7 @@ async function main() {
     };
   }
   setInterval(renderNow, 1000);
-  window.__tour = { S, onFix, trigger, startHere, skip, audio }; // for tests
+  window.__tour = { S, onFix, trigger, startHere, skip, audio, save }; // for tests
 }
 
 main().catch((err) => {

@@ -17,6 +17,11 @@
 </header>
 <main>
   <button id="start" class="big">Start tour</button>
+  <section id="stale" class="card" hidden>
+    <div class="sub">This phone has progress on this tour from more than 8 hours ago.</div>
+    <button id="restart" class="big">Start from the beginning</button>
+    <button id="continue" class="wide">Continue</button>
+  </section>
   <section id="dl-card" class="card dl">
     <div class="sub">Download the audio while you have signal, so the tour works offline.</div>
     <button id="download" class="wide">Download tour for offline</button>
@@ -26,6 +31,7 @@
     <div id="now-title" class="title">Tour not started</div>
     <div id="now-sub" class="sub"></div>
     <div class="bar"><div id="now-bar"></div></div>
+    <div id="now-offers"></div>
     <button id="tap-play" class="primary wide" hidden>▶ Tap to play</button>
     <div id="now-controls" class="controls" hidden>
       <button id="pause">Pause</button>
@@ -40,7 +46,9 @@
     <summary>More</summary>
     <p class="help">Keep this page open on screen while you drive; navigation can run in the
       background. Stops play in order and never interrupt each other: if two trigger close
-      together, the second waits. <b>Start here</b> plays a stop now and continues the sequence from it.</p>
+      together, the second waits. <b>Start here</b> plays a stop now and continues the sequence from it.
+      If you switch to another app or the screen locks, the phone stops sending GPS to this page;
+      a stop you pass meanwhile is offered when you come back.</p>
     <details id="map-box">
       <summary>Route sketch</summary>
       <svg id="map" role="img" aria-label="Route sketch with stops"></svg>
@@ -49,6 +57,11 @@
       <summary>Plain audio files (if the player fails)</summary>
       <p class="help">Each opens in the phone's own audio player.</p>
       <ol id="files" class="files"></ol>
+    </details>
+    <details id="log-box">
+      <summary>Event log</summary>
+      <p class="help">Why each stop started, newest first. It stays on this phone.</p>
+      <ol id="log" class="log"></ol>
     </details>
     <section class="tools">
       <button id="sim" hidden>Simulate drive</button>

@@ -1,6 +1,6 @@
 # 006: Song moments with Spotify links
 
-Status: todo (background GPS measured; player rules settled) · Priority: medium · Raised: 2026-11-02 (Hobart road test)
+Status: doing (background GPS measured; player rules settled; catch-up on return built) · Priority: medium · Raised: 2026-11-02 (Hobart road test)
 
 ## Why
 
@@ -122,6 +122,15 @@ minutes.
   - *Speed after a gap:* don't derive speed from positions across a gap or in the first 10 s
     after it. Use `coords.speed` when the fix has it.
   - Event-log cause `catch-up` (see 001's trigger log).
+  - **Built 2 Nov 2026 with 001** (`onFix`, `catchUp` and `along` in `site/player/app.js`).
+    Two refinements to the rule above: a stop counts only if its centre projects strictly
+    between the two fixes, so a zone still ahead of the car isn't marked missed; and the check
+    repeats while it finds stops, so a gap over more stops than `lookahead` catches them all, in
+    order. If none of the fixes back reaches ±50 m within 30 s, the normal 150 m gate applies.
+    Playing one offer leaves any others; a GPS-triggered stop clears them all. Position-derived
+    speed is never computed across a gap, in the 10 s after it, or between fixes more than 20 s
+    apart. The last 2 minutes of used fixes and their speeds are in `S.track`, ready for the
+    median speed the song button needs.
 - Optional: a "Drive soundtrack" list under More with every song in the tour.
 
 ## Acceptance
@@ -132,7 +141,7 @@ minutes.
       doesn't, even with audio playing (3 Nov 2026, above).
 - [ ] The button shows only when `time to next trigger > song length + 60 s`; otherwise "Save
       for later".
-- [ ] `tests/player_drive.py` simulates a hidden gap whose jump crosses a whole stop zone: that
+- [x] `tests/player_drive.py` simulates a hidden gap whose jump crosses a whole stop zone: that
       stop is offered as "Passed while you were away" and the next one still triggers.
 - [ ] `tour check` rejects a song link whose oEmbed title doesn't match `title`.
 - [ ] A stop with a song has a spoken song segment that names the song and the artist and says
