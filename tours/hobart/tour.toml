@@ -18,6 +18,16 @@ name = "Tour-Tasmania-Narrator"
 voice_id = "ShIjYUEv1pABubDlTWxD"
 source = "Voice Design (eleven_ttv_v3), saved 2026-11-02"
 
+# Guest for the stop 6 interview (task 005). Voice Design preview 1 of 1 round (3 previews,
+# build/lab-005/platypus-design-{1,2,3}.mp3), saved 2026-11-02; the preview's id is kept as
+# the voice id. Chosen because it is clearly unlike the narrator: younger, faster, higher,
+# a light Australian accent. Scott heard it in build/lab-005/stop-6-excerpt-A-stitched.mp3
+# on 2026-11-03: "fantastic! I love this".
+[voices.platypus]
+name = "Tour-Platypus"
+voice_id = "gDRccCpQyi22aTpudovx"
+source = "Voice Design (eleven_ttv_v3), saved 2026-11-02"
+
 [render]
 max_chunk_chars = 1500
 context_chars = 600
@@ -40,6 +50,21 @@ prompt = "A gentle, warm two-note marimba chime, soft and friendly, like an anno
 duration = 1.5
 variants = 2
 chosen = 1
+
+# Stop 6 interview (source/stop-6-platypus.md). Same requests as the lab 005 takes, so
+# they come from the cache. level_db: relative to the voice (a bed's level in the gaps);
+# duck_db: a bed's extra reduction under speech.
+[sfx.river]
+prompt = "Gentle shallow river flowing over stones in quiet Tasmanian forest, soft distant birds, steady, no music, no voices"
+duration = 15
+loop = true
+level_db = -9
+duck_db = -13         # matches the lab 005 reference the user chose
+
+[sfx.splash]
+prompt = "A small animal slipping into calm river water, one soft splash, close, no music, no voices"
+duration = 2
+level_db = -8
 
 # --- Stops -----------------------------------------------------------------------
 # Stops play in this order. Trigger points sit on the OSRM driving route a few minutes

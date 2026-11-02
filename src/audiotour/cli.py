@@ -10,7 +10,7 @@ import shutil
 import sys
 
 from . import config, eleven, master, publish, render
-from .script import check_file, check_voices, load_tracks
+from .script import Problem, check_file, load_tracks
 from .spend import Guard, read_ledger
 
 WORDS_PER_MINUTE = 130
@@ -19,7 +19,7 @@ DEFAULT_MODEL = "eleven_v4"
 
 def cmd_estimate(args: argparse.Namespace) -> None:
     """Character counts per track, so every paid step can be priced first."""
-    tour = config.tour(args.tour)
+    tour = config.tour(args.tour, args.draft)
     tracks = load_tracks(tour.draft)
     total_chars = 0
     print(f"{'track':<10} {'words':>6} {'chars':>7} {'pause s':>8} {'~min':>6}  title")
@@ -36,19 +36,18 @@ def cmd_estimate(args: argparse.Namespace) -> None:
             print(f"\n=== {t.id}: {t.title} ===")
             for seg in t.segments:
                 print(f"  {seg}")
-    errors = sum(p.error for p in check_file(tour.draft))
+    errors = sum(p.error for p in check_file(tour.draft, tour.settings))
     if errors:
         print(f"\n{errors} script error(s); see `tour check {tour.slug}`", file=sys.stderr)
 
 
 def cmd_check(args: argparse.Namespace) -> None:
     """Report everything in the draft that breaks docs/script-format.md; exit 1 on errors."""
-    tour = config.tour(args.tour)
-    problems = check_file(tour.draft)
-    if not any(p.error for p in problems):
-        for t in load_tracks(tour.draft):
-            problems += check_voices(t, render.paragraph_voices(tour, t))
-        problems.sort(key=lambda p: p.line)
+    tour = config.tour(args.tour, args.draft)
+    problems = check_file(tour.draft, tour.settings)
+    for t in load_tracks(tour.draft):
+        problems += [Problem(t.line, msg) for msg in render.retired(tour, t)]
+    problems.sort(key=lambda p: p.line)
     path = tour.draft.relative_to(config.REPO_ROOT)
     for p in problems:
         where = f"{path}:{p.line}" if p.line else str(path)
@@ -149,6 +148,18 @@ def cmd_design(args: argparse.Namespace) -> None:
         print(f"  -> {out.relative_to(config.REPO_ROOT)}  generated_voice_id={preview['generated_voice_id']}")
 
 
+def cmd_save_voice(args: argparse.Namespace) -> None:
+    """Save a Voice Design preview as a library voice, so TTS can use it. Free, but it takes one
+    of the plan's custom-voice slots; an unsaved preview id is a 404 for TTS."""
+    v = eleven.save_designed_voice(args.name, args.description, args.generated_voice_id,
+                                   labels={"tour": args.tour, "series": "audio-tours"})
+    if "voice_id" not in v:
+        raise SystemExit(f"Not saved (is the custom-voice limit reached?): {v}")
+    print(f"saved {args.name}: voice_id = {v['voice_id']}")
+    print(f"Record it in tours/{args.tour}/tour.toml as [voices.<key>] with name, voice_id, source,"
+          " and a comment with the date and why it was chosen.")
+
+
 def cmd_ledger(args: argparse.Namespace) -> None:
     entries = read_ledger(config.tour(args.tour))
     for e in entries:
@@ -164,7 +175,7 @@ def cmd_ledger(args: argparse.Namespace) -> None:
 
 def cmd_render(args: argparse.Namespace) -> None:
     """Render a track's narration chunks (with timestamps) and write its manifest."""
-    tour = config.tour(args.tour)
+    tour = config.tour(args.tour, args.draft)
     guard = Guard(tour, max_chars=args.max_chars, assume_yes=args.yes)
     render.render_track(tour, args.track_id, guard, args.dry_run)
 
@@ -177,7 +188,7 @@ def cmd_sfx(args: argparse.Namespace) -> None:
 
 
 def cmd_master(args: argparse.Namespace) -> None:
-    master.master_track(config.tour(args.tour), args.track_id)
+    master.master_track(config.tour(args.tour, args.draft), args.track_id)
 
 
 def cmd_combine(args: argparse.Namespace) -> None:
@@ -199,10 +210,12 @@ def main() -> None:
     p = sub.add_parser("estimate", help="offline: word/character counts per track")
     p.add_argument("tour", help="tour slug under tours/, e.g. hobart")
     p.add_argument("-v", "--verbose", action="store_true", help="print parsed segments")
+    p.add_argument("--draft", metavar="FILE", help="another draft in tours/<tour>/source/ (builds into build/<its name>/)")
     p.set_defaults(func=cmd_estimate)
 
     p = sub.add_parser("check", help="offline: check the draft against docs/script-format.md")
     p.add_argument("tour", help="tour slug under tours/, e.g. hobart")
+    p.add_argument("--draft", metavar="FILE", help="another draft in tours/<tour>/source/ (builds into build/<its name>/)")
     p.set_defaults(func=cmd_check)
 
     p = sub.add_parser("account", help="free: plan tier and credits remaining")
@@ -238,11 +251,19 @@ def main() -> None:
     p.add_argument("--seed", type=int)
     p.set_defaults(func=cmd_design)
 
+    p = sub.add_parser("save-voice", help="free, but uses a custom-voice slot: save a design preview")
+    p.add_argument("tour")
+    p.add_argument("--name", required=True, help="library name, e.g. Tour-Platypus")
+    p.add_argument("--description", required=True, help="the design description")
+    p.add_argument("--generated-voice-id", required=True, help="from `tour design` output")
+    p.set_defaults(func=cmd_save_voice)
+
     p = sub.add_parser("render", help="PAID: render a track's narration in chunks")
     p.add_argument("tour")
     p.add_argument("track_id", help="e.g. ch01")
     p.add_argument("--max-chars", type=int, default=6000, help="refuse above this")
     p.add_argument("-n", "--dry-run", action="store_true", help="show chunks and cost only")
+    p.add_argument("--draft", metavar="FILE", help="another draft in tours/<tour>/source/ (builds into build/<its name>/)")
     p.add_argument("-y", "--yes", action="store_true", help="skip the confirmation prompt")
     p.set_defaults(func=cmd_render)
 
@@ -257,6 +278,7 @@ def main() -> None:
     p = sub.add_parser("master", help="offline: mix, master and tag a rendered track")
     p.add_argument("tour")
     p.add_argument("track_id")
+    p.add_argument("--draft", metavar="FILE", help="another draft in tours/<tour>/source/ (builds into build/<its name>/)")
     p.set_defaults(func=cmd_master)
 
     p = sub.add_parser("combine", help="offline: join mastered tracks into one MP3 with chapters")

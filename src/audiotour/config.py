@@ -23,10 +23,14 @@ def api_key() -> str:
     return key
 
 
+DRAFT = "working-draft.md"
+
+
 @dataclass(frozen=True)
 class Tour:
     slug: str
     tours_dir: Path = TOURS_DIR  # tests point this at a temporary directory
+    draft_name: str = DRAFT  # another file in source/ for an excerpt or trial, e.g. stop-6-platypus.md
 
     @property
     def root(self) -> Path:
@@ -34,11 +38,19 @@ class Tour:
 
     @property
     def draft(self) -> Path:
-        return self.root / "source" / "working-draft.md"
+        return self.root / "source" / self.draft_name
 
     @property
     def build(self) -> Path:
-        return self.root / "build"
+        """Renders and masters. Another draft builds into its own subfolder, so it can never
+        overwrite the tour's published stops."""
+        base = self.root / "build"
+        return base if self.draft_name == DRAFT else base / Path(self.draft_name).stem
+
+    @property
+    def sfx_dir(self) -> Path:
+        """Generated sound effects, shared by every draft of the tour."""
+        return self.root / "build" / "sfx"
 
     @property
     def settings(self) -> dict:
@@ -75,6 +87,14 @@ class Tour:
 _warned: set[str] = set()
 
 
+def show(path: Path) -> str:
+    """A path relative to the repo for messages, or as given if it's elsewhere (tests)."""
+    try:
+        return str(path.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
+
+
 def _toml(path: Path) -> dict:
     if not path.exists():
         return {}
@@ -82,11 +102,13 @@ def _toml(path: Path) -> dict:
         return tomllib.load(f)
 
 
-def tour(slug: str) -> Tour:
-    t = Tour(slug)
+def tour(slug: str, draft: str | None = None) -> Tour:
+    t = Tour(slug, draft_name=draft or DRAFT)
     if not t.root.is_dir():
         known = ", ".join(sorted(p.name for p in TOURS_DIR.iterdir() if p.is_dir()))
         raise SystemExit(f"No tour '{slug}' under {TOURS_DIR}. Known: {known}")
+    if draft and not t.draft.exists():
+        raise SystemExit(f"No draft {t.draft}")
     return t
 
 

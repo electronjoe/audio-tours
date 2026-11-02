@@ -23,7 +23,7 @@ DEFAULT_CONTEXT = 600
 
 def find_track(tour: config.Tour, track_id: str) -> tuple[Track, int]:
     """The track and its 1-based position in the tour. Refuses a draft that fails the check."""
-    errors = [p for p in check_file(tour.draft) if p.error]
+    errors = [p for p in check_file(tour.draft, tour.settings) if p.error]
     if errors:
         raise SystemExit(
             f"{tour.draft} has {len(errors)} script error(s); see `tour check {tour.slug}`"
@@ -31,25 +31,22 @@ def find_track(tour: config.Tour, track_id: str) -> tuple[Track, int]:
     tracks = load_tracks(tour.draft)
     for n, t in enumerate(tracks, 1):
         if t.id == track_id:
+            if retired(tour, t):
+                raise SystemExit(retired(tour, t)[0])
             return t, n
     raise SystemExit(f"No track {track_id}; known: {', '.join(t.id for t in tracks)}")
 
 
-def paragraph_voices(tour: config.Tour, track: Track) -> dict[int, str]:
-    """``[tracks.<id>.voices]`` as 0-based paragraph -> voice name. Unlisted paragraphs are
-    the narrator's. Refuses unknown voices, out-of-range or doubly assigned paragraphs."""
-    listed = tour.settings.get("tracks", {}).get(track.id, {}).get("voices", {})
-    known = tour.settings.get("voices", {})
-    out: dict[int, str] = {}
-    for name, numbers in listed.items():
-        if name not in known:
-            raise SystemExit(f"[tracks.{track.id}.voices] names '{name}', but tour.toml has no [voices.{name}]")
-        for n in numbers:
-            if not 1 <= n <= len(track.paragraphs):
-                raise SystemExit(f"[tracks.{track.id}.voices] {name}: no paragraph {n} (1-{len(track.paragraphs)})")
-            if n - 1 in out:
-                raise SystemExit(f"[tracks.{track.id}.voices] paragraph {n} is both {out[n - 1]}'s and {name}'s")
-            out[n - 1] = name
+def retired(tour: config.Tour, track: Track) -> list[str]:
+    """The pre-005 paragraph-number maps in tour.toml are gone; say what replaced them."""
+    t = tour.settings.get("tracks", {}).get(track.id, {})
+    out = []
+    if "voices" in t:
+        out.append(f"[tracks.{track.id}.voices] in tour.toml is retired: label the guest's paragraphs "
+                   "('NAME: ...') and list NAME under '## Cast' (docs/script-format.md)")
+    if "beds" in t:
+        out.append(f"[[tracks.{track.id}.beds]] in tour.toml is retired: put '[SFX — name, under]' and "
+                   "'[SFX — name, stop]' cues in the script (docs/script-format.md)")
     return out
 
 
@@ -60,7 +57,6 @@ def plan(tour: config.Tour, track: Track) -> list[Chunk | Gap]:
         tour.overrides.get("replace", []),
         render.get("max_chunk_chars", DEFAULT_MAX_CHUNK),
         render.get("announce_titles", True),
-        paragraph_voices(tour, track),
         render.get("title_label", True),
     )
 
@@ -250,7 +246,7 @@ def generate_sfx(tour: config.Tour, names: list[str], guard: Guard, max_seconds:
             raise SystemExit(f"{seconds:g} s exceeds --max-seconds {max_seconds:g}; refusing.")
         guard.approve("sound effects", sum(len(r["text"]) for _, _, r in todo))
         guard.assume_yes = True
-    out_dir = tour.build / "sfx"
+    out_dir = tour.sfx_dir
     out_dir.mkdir(parents=True, exist_ok=True)
     for name, variant, r in requests:
         call = lambda r=r: eleven.sound_effect(

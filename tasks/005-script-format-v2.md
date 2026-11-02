@@ -1,6 +1,6 @@
 # 005: Script format v2: cast, guest voices, inline sound effects
 
-Status: doing · Priority: high · Raised: 2026-11-02 (Hobart road test)
+Status: doing (built; waiting on a phone-speaker listen and the speaker-gap choice) · Priority: high · Raised: 2026-11-02 (Hobart road test)
 
 ## Why
 
@@ -47,13 +47,18 @@ because it has no speaker labels and no bracketed cues (`docs/script-format.md`)
 
 ## Acceptance
 
-- [ ] A test draft with two speakers, one one-shot SFX and one bed passes `tour check`. Bad
-      cast or SFX names fail it.
+- [x] A test draft with two speakers, one one-shot SFX and one bed passes `tour check`. Bad
+      cast or SFX names fail it. (`tours/hobart/source/stop-6-platypus.md` with
+      `tour check hobart --draft stop-6-platypus.md`, and `tests/test_script.py`.)
 - [ ] Rendered and mastered, it has both voices, the SFX at the right moments, and speech that
-      stays intelligible over the bed (listen on phone speakers, not just headphones).
-- [ ] `tests/test_script.py` covers the new syntax, and the prompt in `docs/script-format.md`
+      stays intelligible over the bed (listen on phone speakers, not just headphones). Built as
+      `build/stop-6-platypus/stop-6.mp3`; the placement is checked by
+      `tests/test_master_mix.py`. It still needs a listen.
+- [x] `tests/test_script.py` covers the new syntax, and the prompt in `docs/script-format.md`
       is updated to match the parser.
-- [ ] `ledger.jsonl` shows the extra credit cost per stop, so the cost of multi-voice is known.
+- [x] `ledger.jsonl` shows the extra credit cost per stop, so the cost of multi-voice is known.
+      (The `lab-005 …` entries. The real pipeline's proof render came entirely from them, at 0
+      credits.)
 
 ## Open questions
 
@@ -170,3 +175,43 @@ the real parser:
   compressor).
 - Retire the existing `[tracks.<id>.voices]` paragraph map and `check_voices` quoting check
   once labels exist.
+
+## As built (2026-11-03)
+
+Method A, per-speaker TTS, in the real pipeline. `lab/` is gone: the excerpt is now
+`tours/hobart/source/stop-6-platypus.md`, and method B's code is in git history (fbd14b5,
+`lab/voices_005.py`) if a later tour wants the dialogue endpoint.
+
+- **Parser** (`script.py`). `## Cast` lines are `- NAME → voices.<key>: note` (`->` also
+  works, and a note may wrap onto indented lines). `NARRATOR` is always in the cast. A
+  paragraph starting `NAME:` is that voice's, with the label stripped. A capitalised `WORD:`
+  that isn't in the cast is an error, and a lower-case `Platypus:` matching a cast name is a
+  warning. `[SFX — name]`, `[SFX — name, under]` and `[SFX — name, stop]` become `Cue`
+  segments. `tour check` reports cast voices and SFX missing from `tour.toml`, unknown modes,
+  a `stop` with no bed running, a bed started twice, and an `under` with no speech after it.
+- **Render** (`chunks.py`, `render.py`). Each change of speaker starts a chunk, and context
+  crosses speakers. Cues don't split chunks. The request shape is unchanged, so the lab's
+  cached turns were reused exactly: the proof render cost 0 credits.
+- **Master** (`master.py`). The master walks the script's segments over the rendered chunks.
+  A one-shot cue cuts its chunk at the paragraph break, with no re-render, and the gap becomes
+  `sfx_gap` (0.5 s), the effect, then `sfx_gap`. A change of speaker gets `speaker_gap`
+  (0.35 s). Beds fade in 1.5 s before the next speech and out over 3 s from the last speech
+  before `stop`. They are ducked by a sidechain compressor keyed on the voice, with its
+  threshold set from `duck_db` (ratio 4, the lab's attack and release). `level_db` and
+  `duck_db` default to −9. Hobart's river uses `duck_db = -13`, which at this voice level is
+  the lab reference's compressor setting exactly. Pauses and one-shots after the last speech
+  now play; the old master dropped them, and no Hobart stop has one. `timeline.json` records
+  each bed's measured level under speech and in the gaps.
+- **Retired.** `[tracks.<id>.voices]`, `[[tracks.<id>.beds]]` and `check_voices` are removed.
+  `tour check` reports the two tables if present, and render and master refuse them.
+- **Trial drafts.** `--draft <file>.md` on `estimate`, `check`, `render` and `master` reads
+  another file in `source/` and builds into `build/<file>/`, sharing the cache and
+  `build/sfx/`. `tour save-voice` saves a design preview into a voice slot (free).
+- **Hobart is unchanged.** Every stop's dry run is fully cached. Re-mastered from the cache
+  into a scratch build, all eight decode to the same audio as `site/hobart/audio/`. The only
+  byte difference is the genre tag, which has been "Audio tour" in the code since f44baa7,
+  while the published files still say "Audiobook".
+- **Proof.** `build/stop-6-platypus/stop-6.mp3` (69 s, 0.35 s hand-offs, bed −23.0 dB under
+  speech and −16.3 dB in the gaps). `stop-6-speaker-gap-1.0.mp3` (75 s) uses the reference's
+  roughly 1 s hand-offs for comparison. The lab reference measured about 1.0 s of silence between
+  turns: its 0.6 s gap plus the trim padding.

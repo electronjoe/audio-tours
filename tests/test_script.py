@@ -1,7 +1,14 @@
 import re
 
-from audiotour.config import TOURS_DIR, REPO_ROOT
-from audiotour.script import Pause, Text, check, check_file, parse_tracks, load_tracks
+from audiotour.config import REPO_ROOT
+from audiotour.script import (
+    Cue,
+    Pause,
+    Text,
+    check,
+    parse_cast,
+    parse_tracks,
+)
 
 SAMPLE = """\
 ## Locked configuration
@@ -80,7 +87,7 @@ More.
     problems = [(p.line, p.error, p.message.split(":")[0]) for p in check(draft)]
     assert problems == [
         (1, True, "not a track heading ('## Script"),
-        (7, True, "bracketed text would be spoken; a pause is its own paragraph, '[PAUSE — 3 SECONDS]'"),
+        (7, True, "bracketed text would be spoken; a pause or sound cue is its own paragraph, '[PAUSE — 3 SECONDS]' or '[SFX — name]'"),
         (9, True, "heading, list, table, quote or rule inside a track would be spoken"),
         (11, True, "heading, list, table, quote or rule inside a track would be spoken"),
         (13, False, "digits"),
@@ -103,11 +110,105 @@ def test_script_format_example_is_clean():
     assert check(example) == []
 
 
-def test_check_voices_flags_unquoted_and_misassigned_paragraphs():
-    from audiotour.script import Text, Track, check_voices
+CAST_DRAFT = """\
+# Interview
 
-    t = Track("episode-1", "Episode 1", "T", [Text("Hello."), Text('"Hi," said Kiki.'), Text('"Bye."')])
-    assert check_voices(t, {}) == []
-    assert check_voices(t, {1: "kiki", 2: "kiki"}) == []
-    problems = check_voices(t, {0: "kiki", 1: "kiki"})
-    assert [(p.error, p.message[:12]) for p in problems] == [(False, "paragraph 1 "), (False, "paragraph 3 ")]
+## Cast
+
+- PLATYPUS → voices.platypus: a cheerful young platypus,
+  quick and a little cheeky.
+- OLD MINER -> voices.miner: a gravelly storyteller
+
+## Script: Stop 1 — The River
+
+[SFX — river, under]
+
+Excuse me, platypus?
+
+**PLATYPUS:** A minute? I'm on my dinner break.
+
+[SFX — splash]
+
+NARRATOR: Then how do you find dinner?
+
+OLD MINER: Gold, mostly.
+
+And the second paragraph of a long speech needs no label? It does.
+
+[SFX — river, stop]
+
+[PAUSE — 3 SECONDS]
+"""
+
+
+def test_cast_labels_and_cues_parse():
+    cast, problems = parse_cast(CAST_DRAFT)
+    assert problems == []
+    assert cast["PLATYPUS"].voice == "platypus"
+    assert cast["PLATYPUS"].note == "a cheerful young platypus, quick and a little cheeky."
+    assert cast["OLD MINER"].voice == "miner"
+    [t] = parse_tracks(CAST_DRAFT)
+    assert t.segments == [
+        Cue("river", "under"),
+        Text("Excuse me, platypus?"),
+        Text("A minute? I'm on my dinner break.", voice="platypus"),
+        Cue("splash"),
+        Text("Then how do you find dinner?"),
+        Text("Gold, mostly.", voice="miner"),
+        Text("And the second paragraph of a long speech needs no label? It does."),
+        Cue("river", "stop"),
+        Pause(3.0),
+    ]
+    assert t.char_count == sum(len(p) for p in t.paragraphs)  # labels aren't spoken, or counted
+    assert check(CAST_DRAFT, voices={"narrator", "platypus", "miner"}, sfx={"river", "splash"}) == []
+
+
+def test_check_reports_unknown_cast_voices_and_sfx():
+    problems = [(p.line, p.message) for p in check(CAST_DRAFT, voices={"narrator", "platypus"}, sfx={"river"})]
+    assert problems == [
+        (7, "OLD MINER speaks with voices.miner, but tour.toml has no [voices.miner]"),
+        (17, "[SFX — splash]: tour.toml has no [sfx.splash]"),
+    ]
+
+
+def test_check_rejects_bad_labels_and_cues():
+    draft = """\
+## Cast
+
+- PLATYPUS → voices.platypus: a platypus
+- not a cast line
+
+## Script: Stop 1 — The River
+
+KOALA: I'm not in the cast.
+
+Platypus: lower-case labels are only a warning.
+
+PLATYPUS:
+
+[SFX — river, stop]
+
+[SFX — rain, loud]
+
+[SFX — rain, under]
+
+Speech.
+
+[SFX — rain, under]
+
+[SFX — ]
+
+[SFX — wind, under]
+"""
+    problems = [(p.line, p.error, p.message.split(":")[0]) for p in check(draft)]
+    assert problems == [
+        (4, True, "cast line isn't '- NAME → voices.<key>"),
+        (8, True, "'KOALA"),
+        (10, False, "'Platypus"),
+        (12, True, "PLATYPUS"),
+        (14, True, "[SFX — river, stop]"),
+        (16, True, "[SFX — rain, loud]"),
+        (22, True, "[SFX — rain, under]"),
+        (24, True, "sound cue has no name"),
+        (26, True, "[SFX — wind, under]"),
+    ]

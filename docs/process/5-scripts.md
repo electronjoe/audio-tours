@@ -52,15 +52,33 @@ The narrator stays the host and interviews a guest at a few stops per tour.
   platypus could talk, it might say..."). Everything they say must still be true.
 - A guest moment lasts 30–90 seconds of back and forth. The narrator asks short questions, and
   the guest answers in character with real facts.
-- Give each guest a short `## Cast` note (personality, pace, accent if relevant) for voice
-  design. Avoid caricatured accents.
+- List each guest under `## Cast` with a short character note (personality, pace, accent if
+  relevant), which is what the voice is designed from: `- PLATYPUS → voices.platypus: a
+  cheerful, quick young platypus`. Avoid caricatured accents. Each guest paragraph starts with
+  its label, `PLATYPUS: ...`; the narrator's paragraphs have none (`docs/script-format.md`).
+- Keep turns short, usually one paragraph. Each turn is its own TTS request, so a retake of
+  one line re-renders only that line, and a speaker change gets a short hand-off gap.
+- A custom voice slot is scarce (the plan holds 3, all in use), so reuse a guest voice across
+  tours where it fits, or ask before designing a new one (6-sound.md).
+- Example: `tours/hobart/source/stop-6-platypus.md`, the narrator interviewing a platypus.
+  Trying a guest moment as its own draft like this is cheap: `tour check|render|master <slug>
+  <stop> --draft <file>.md` builds into `build/<file>/` and never touches the published stops,
+  and lines that keep their text and neighbours come from the cache.
 
 ## Sound in the script
 
-Mark SFX with cues (syntax in task 005) at moments that help the story: the creak of a hop kiln,
-rain on a forest canopy, a steam whistle in the distance. Use 2–4 per stop, never over a key
-sentence, and never anything alarming to a driver (README house rules). Until task 005 lands,
-list them in `## Audio notes`.
+Mark SFX with cues on their own line at moments that help the story: the creak of a hop kiln,
+rain on a forest canopy, a steam whistle in the distance (`docs/script-format.md`).
+
+- `[SFX — splash]`: a one-shot, played in the gap between the paragraphs around it. The gap
+  grows by the effect's length, so put it on a beat, after the line it answers.
+- `[SFX — river, under]` … `[SFX — river, stop]`: a bed under the speech in between, ducked
+  under the voice. Without `stop`, it fades out after the track's last speech.
+
+Use 2–4 per stop, never over a key sentence, and never anything alarming to a driver (README
+house rules). Describe each named sound in `## Audio notes` (one-shot or bed, and what it should
+sound like), which is where `6-sound.md` takes its `[sfx.<name>]` prompt from. Adding or moving a
+cue doesn't re-render any speech.
 
 ## Rules checklist before `tour check`
 
@@ -71,6 +89,9 @@ list them in `## Audio notes`.
 - [ ] Each stop fits its time budget (word count ÷ about 110 per minute, plus pauses and the
       song segment).
 - [ ] Each title follows the pattern and doesn't spoil the story.
-- [ ] Guests follow the rules above. Songs are named, explained and verified.
+- [ ] Guests follow the rules above and are listed in `## Cast`. Songs are named, explained and
+      verified.
+- [ ] Every SFX cue is described in `## Audio notes`, and `tour check` finds its
+      `[sfx.<name>]` and every cast voice in `tour.toml`.
 - [ ] Every unusual name is in `## Pronunciation`.
 - [ ] No family names or personal details anywhere in the committed draft.

@@ -1,8 +1,10 @@
-# Lab 005: guest voice and SFX excerpt
+# Hobart to Russell Falls: stop 6 interview
 
-Research excerpt for task 005, written in the syntax that task proposes. It is not a tour
-track: `tour check` doesn't read this file. Facts come from the stop 6 research notes
-(Australian Museum, AMNH, Australian Platypus Conservancy, regional visitor information).
+The platypus moment for stop 6, in the task 005 script format: the narrator interviews a
+platypus, over a river bed, with a splash. It is a separate draft, built into
+`build/stop-6-platypus/`, so the published stop 6 is untouched. Render and master it with
+`--draft stop-6-platypus.md`. Facts come from the stop 6 research notes (Australian Museum,
+AMNH, Australian Platypus Conservancy, regional visitor information).
 
 ## Cast
 

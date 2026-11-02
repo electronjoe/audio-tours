@@ -1,8 +1,16 @@
 import pytest
 
-from audiotour.chunks import Chunk, Gap, apply_overrides, balanced_groups, context, plan_track, spoken_title
+from audiotour.chunks import (
+    Chunk,
+    Gap,
+    apply_overrides,
+    balanced_groups,
+    context,
+    plan_track,
+    spoken_title,
+)
 from audiotour.config import TOURS_DIR
-from audiotour.script import Pause, Text, Track, load_tracks
+from audiotour.script import Cue, Pause, Text, Track, load_tracks
 
 
 def track(*segments) -> Track:
@@ -52,12 +60,20 @@ def test_stop1_plan():
     assert [p for c in chunks for p in c.paragraphs] == list(range(len(ch01.paragraphs)))
 
 
-def test_changes_of_voice_split_chunks():
-    t = track(Text("a"), Text('"b"'), Text('"c"'), Text("d"), Pause(3), Text("e"))
-    chunks = [x for x in plan_track(t, [], 1500, True, {1: "kiki", 2: "kiki"}) if isinstance(x, Chunk)]
+def test_changes_of_speaker_split_chunks_and_cues_do_not():
+    t = track(Text("a"), Text("b", voice="kiki"), Cue("splash"), Text("c", voice="kiki"), Text("d"),
+              Cue("rain", "under"), Text("e"), Pause(3), Text("f"))
+    chunks = [x for x in plan_track(t, [], 1500, True) if isinstance(x, Chunk)]
     assert [(c.paragraphs, c.voice) for c in chunks] == [
-        ([], "narrator"), ([0], "narrator"), ([1, 2], "kiki"), ([3], "narrator"), ([4], "narrator"),
+        ([], "narrator"), ([0], "narrator"), ([1, 2], "kiki"), ([3, 4], "narrator"), ([5], "narrator"),
     ]
+
+
+def test_hobart_plans_are_unchanged_by_the_new_syntax():
+    """Every Hobart stop is still one narrator, so its chunks (and cache keys) are as before."""
+    for t in load_tracks(TOURS_DIR / "hobart" / "source" / "working-draft.md"):
+        assert {seg.voice for seg in t.segments if isinstance(seg, Text)} == {"narrator"}
+        assert not any(isinstance(seg, Cue) for seg in t.segments)
 
 
 def test_title_without_label():

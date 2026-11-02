@@ -1,8 +1,10 @@
 """Plan how a track is rendered: spoken-text overrides, then chunks and pauses.
 
 A chunk is a run of whole paragraphs sent as one TTS request, so a retake
-re-renders one chunk rather than a chapter. Pauses and changes of voice always
-split chunks, and pauses become local silence. Chunk sizes are balanced: the fewest chunks that keep
+re-renders one chunk rather than a chapter. Pauses and changes of speaker always
+split chunks, and pauses become local silence. Sound cues don't split chunks: the
+master cuts the audio at the paragraph break instead, so adding a cue to a
+rendered script costs nothing. Chunk sizes are balanced: the fewest chunks that keep
 each one under ``max_chars``, with the sizes as even as the paragraphs allow.
 """
 
@@ -119,12 +121,12 @@ def plan_track(
     replacements: list[dict],
     max_chars: int,
     announce_title: bool,
-    voices: dict[int, str] | None = None,
     title_label: bool = True,
 ) -> list[Item]:
-    """``voices`` maps 0-based paragraph indexes to a voice; the rest (and the title) are the narrator's."""
+    """Chunks and gaps in order. Each paragraph's voice comes from its speaker label; the
+    title is the narrator's."""
     texts = apply_overrides(track, replacements)
-    voices = voices or {}
+    voices = {i: seg.voice for i, seg in enumerate(s for s in track.segments if isinstance(s, Text))}
     items: list[Item] = []
     if announce_title:
         items.append(Chunk(0, [], [spoken_title(track, title_label)]))
