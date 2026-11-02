@@ -49,6 +49,7 @@ def publish(tour: config.Tour, site_dir: Path = SITE_DIR) -> None:
         stop = {"id": sid, "n": n, "title": t.title, "lat": s["lat"], "lon": s["lon"],
                 "radius": s.get("radius", 400), "place": s.get("place", ""),
                 "strict": s.get("strict", False)}
+        stop |= nav_field(sid, s)
         mp3 = tour.build / f"{sid}.mp3"
         old = previous.get(sid, {})
         if mp3.exists():
@@ -74,12 +75,38 @@ def publish(tour: config.Tour, site_dir: Path = SITE_DIR) -> None:
     data = {"schema": SCHEMA, "slug": tour.slug, "title": tour.title, "mode": mode,
             "lookahead": player.get("lookahead", 2), "stops": stops,
             "route": json.loads(route_file.read_text()) if route_file.exists() else {}}
+    data["route"] |= route_end(tour)
     (out / "tour.json").write_text(json.dumps(data, ensure_ascii=False, indent=1) + "\n")
     total = sum(s.get("bytes", 0) for s in stops)
     print(f"{tour.slug}: {len(stops)} stops, {len(keep)} with audio, {total / 1e6:.1f} MB")
     print(f"  -> {out.relative_to(site_dir.parent)}/tour.json")
     write_pages(tour, site_dir)
     write_index(site_dir)
+
+
+def _point(value, where: str) -> list[float]:
+    """A ``[lat, lon]`` pair from tour.toml, checked, so a typo fails at publish, not in Maps."""
+    if (isinstance(value, list) and len(value) == 2
+            and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in value)
+            and -90 <= value[0] <= 90 and -180 <= value[1] <= 180):
+        return [float(v) for v in value]
+    raise SystemExit(f"{where} = {value!r}; expected [lat, lon] in degrees")
+
+
+def nav_field(sid: str, s: dict) -> dict:
+    """A stop's ``nav`` for the Navigate link (task 003): ``[lat, lon]``, ``false`` (not a
+    waypoint), or nothing (the player uses the trigger point)."""
+    if "nav" not in s:
+        return {}
+    if s["nav"] is False:
+        return {"nav": False}
+    return {"nav": _point(s["nav"], f"[stops.{sid}] nav")}
+
+
+def route_end(tour: config.Tour) -> dict:
+    """``[route] end`` from tour.toml: where the Navigate links finish (task 003)."""
+    route = tour.settings.get("route", {})
+    return {"end": _point(route["end"], "[route] end")} if "end" in route else {}
 
 
 def pages(site_dir: Path = SITE_DIR, tours_dir: Path = config.TOURS_DIR) -> None:

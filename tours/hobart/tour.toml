@@ -67,9 +67,14 @@ duration = 2
 level_db = -8
 
 # --- Route -----------------------------------------------------------------------
-# Legs for `uv run tour route hobart` (docs/process/1-route.md): each is driven through its
-# points in order (start, any fixed stops, end). `wait` is minutes parked at the leg's end,
-# which `tour plan-check` adds to the road time between triggers.
+# `end` is where every stop's "Navigate from here" link finishes (task 003): Hobart city
+# centre, the end of route.json's return leg. A stop can add `nav = [lat, lon]` (where to drive
+# to, if not its trigger point) or `nav = false` (a drive-by stop that shouldn't be a Maps
+# waypoint). The legs are for `uv run tour route hobart` (docs/process/1-route.md): each is
+# driven through its points in order (start, any fixed stops, end). `wait` is minutes parked
+# at the leg's end, which `tour plan-check` adds to the road time between triggers.
+[route]
+end = [-42.88199, 147.33654]
 
 [route.outbound]
 points = [[-42.88199, 147.33654], [-42.68181, 146.71655]]   # Hobart CBD -> Mount Field visitor centre

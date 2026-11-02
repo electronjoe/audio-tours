@@ -229,7 +229,7 @@ class Trip:
 def trip(route: dict, waits: dict[str, float]) -> Trip:
     """Sample route.json's legs in order. Times come from its ``seconds`` (OSRM), else from
     FALLBACK_KMH; ``waits`` adds minutes parked at the end of a leg."""
-    legs = [k for k, v in route.items() if k != "seconds" and isinstance(v, list) and v]
+    legs = [k for k, v in route.items() if k not in ("seconds", "end") and isinstance(v, list) and v]
     times = route.get("seconds") or {}
     out = Trip(timed=all(len(times.get(k, [])) == len(route[k]) for k in legs))
     dist = clock = 0.0

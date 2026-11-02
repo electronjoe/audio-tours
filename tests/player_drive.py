@@ -18,6 +18,8 @@ points. Checks:
   were away" (not played, logged as catch-up), derives no speed across the gap, and the
   next stop still triggers
 - the event log shows why each stop started
+- every stop card has Navigate from here: a Maps route through that stop and every later
+  one to the tour's end; stop 6's goes back through New Norfolk to Hobart
 - after Download, the tour opens and plays with the network off
 
 The screenshot goes to tours/<tour>/build/player-test.png, or to $PLAYER_TEST_SHOT.
@@ -33,6 +35,7 @@ import os
 import sys
 import threading
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 from playwright.sync_api import sync_playwright
 
@@ -94,6 +97,27 @@ def finish_current(page) -> None:
     page.wait_for_function("() => window.__tour.audio.ended || !window.__tour.S.current || window.__tour.audio.currentTime < 1", timeout=5000)
 
 
+def check_nav_links(page, tour: dict, check) -> None:
+    """Task 003: each stop card's Navigate from here link, as rendered."""
+    print("Navigate from here")
+    links = page.eval_on_selector_all("details.stop a.nav", "els => els.map(a => [a.textContent, a.href, a.target])")
+    stops = tour["stops"]
+    check(len(links) == len(stops) and all(text == "Navigate from here" and target == "_blank" for text, _, target in links),
+          f"every stop card has Navigate from here ({len(links)} of {len(stops)})")
+    end = tour["route"].get("end")
+    point = lambda s: f"{s['lat']},{s['lon']}"
+    simple = len(stops) <= 9 and end and not any("nav" in s for s in stops)  # no nav points, no cut
+    for k in ((0, 5) if simple and len(links) == len(stops) else ()):
+        q = {key: v[0] for key, v in parse_qs(urlsplit(links[k][1]).query).items()}
+        want = [point(s) for s in stops[k:]]
+        check(urlsplit(links[k][1]).path == "/maps/dir/" and "origin" not in q and q.get("travelmode") == "driving"
+              and q.get("waypoints", "").split("|") == want and q.get("destination") == ",".join(map(str, end)),
+              f"stop {k + 1}: Maps route from here through stops {k + 1}-{len(stops)} to the end, from the current location")
+    if TOUR == "hobart":
+        check("New Norfolk" in stops[7]["place"] and end == tour["route"]["return"][-1],
+              "stop 6's route goes back through New Norfolk (stop 8) to Hobart (the end of the return leg)")
+
+
 def main() -> None:
     tour = json.loads((SITE / TOUR / "tour.json").read_text())
     stops = [s["id"] for s in tour["stops"]]
@@ -116,6 +140,7 @@ def main() -> None:
         page.evaluate("() => localStorage.clear()")
         page.reload()
         page.wait_for_function("() => window.__tour")
+        check_nav_links(page, tour, check)
         page.click("#start")
         page.wait_for_timeout(500)
 

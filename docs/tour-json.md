@@ -31,6 +31,7 @@ constant must match, and `tests/test_publish.py` checks that they do.
 | `lookahead` | integer | `[player].lookahead` (default 2) | How many unplayed stops, counting from the next one in sequence, GPS may trigger. |
 | `stops` | array | `[stops.*]`, in file order | See below. |
 | `route` | object | `tours/<slug>/route.json` (or `{}`) | `outbound` and `return`: arrays of `[lat, lon]` points. Used for the route sketch and the simulated drive. A route made by `tour route` also has `seconds`: for each leg, OSRM's driving seconds from the leg's start at each point. The player ignores it. |
+| `route.end` | `[lat, lon]`, optional | `[route] end` | Where every Navigate from here link finishes (task 003). Missing: the links finish at the last stop's point. |
 
 ## Stops
 
@@ -43,12 +44,23 @@ constant must match, and `tests/test_publish.py` checks that they do.
 | `radius` | number | `radius` (default 400) | Trigger radius in metres. |
 | `place` | string | `place` (default `""`) | Where the stop triggers, in words. |
 | `strict` | boolean | `strict` (default false) | The stop can't trigger until the stop before it has played or been skipped. |
+| `nav` | `[lat, lon]` or `false`, optional | `nav` | For the Navigate from here links (task 003): where to drive to for this stop, if not its trigger point; `false` leaves the stop out of the links (a drive-by stop). Missing: the trigger point. |
 | `audio` | string, optional | `build/<id>.mp3` | Path relative to the tour folder, e.g. `audio/stop-1-105ddfb9.mp3`. The 8 hex digits are a content hash, so a re-master gets a new URL. Missing if the stop isn't mastered yet. |
 | `bytes` | integer, optional | | Size of the audio file. |
 | `duration` | number, optional | | Length in seconds, to 0.1 s. |
 
 The player inserts `title` and `place` into the page as HTML. Keep them plain text, without `<`
 or `&`.
+
+## Navigate from here
+
+Each stop card has a Google Maps directions link built by the player (`navLink` in `app.js`)
+from `nav`, the trigger points and `route.end`: this stop and every later one, in order, then
+`route.end` as the destination. A point equal to the one just before it is dropped; repeats
+further apart stay, because they are what makes Maps drive out and back. There is no origin,
+so Maps starts from the phone's location. More than 10 points are cut to the first 10 (9
+waypoints and a destination) and the link reads "Navigate (next 10 stops)". `travelmode` is
+`walking` for a walk tour, else `driving`.
 
 If a stop's `build/<id>.mp3` is missing (for example in a fresh clone), publish keeps the stop's
 existing `audio`, `bytes` and `duration`, as long as that file is still in `site/<slug>/audio/`.
@@ -60,7 +72,6 @@ These are planned by open tasks. Each one is optional, so none of them bumps the
 
 | Field | Task | Meaning |
 | --- | --- | --- |
-| stop `nav`, `route.end` | [003](../tasks/003-maps-route-from-stop.md) | Where to navigate to for each stop, and the trip's end point, for Google Maps links. |
 | stop `song` | [006](../tasks/006-spotify-songs.md) | Song title, artist and Spotify link, shown after the stop's audio. |
 | `order`, `max_accuracy`, `sim_speed` | [007](../tasks/007-walking-tours.md) | Walking tours: any-order stops, the GPS accuracy threshold and the simulation speed, copied from `[player]`. |
 
