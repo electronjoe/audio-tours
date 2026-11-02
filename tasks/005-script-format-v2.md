@@ -60,9 +60,9 @@ because it has no speaker labels and no bracketed cues (`docs/script-format.md`)
 - Credits: a guest voice and 2–4 SFX per stop costs more than a plain narrator. Check
   `uv run tour account` before rendering a full tour. Answered by the test below: the guest
   costs nothing extra, the SFX about 100 credits per stop.
-- Custom-voice limit: the account holds 3 of 3 custom voices (the Hobart narrator and two from
-  another project). A designed guest voice can't be saved until a slot is freed or the plan
-  is upgraded. That's the user's decision.
+- Custom-voice limit: the plan allows 3 custom voices. It now holds `Tour-Tasmania-Narrator`,
+  `Tour-Platypus` and `Postcards-Guide` (keep that one), so it's full again. A second guest
+  voice means a plan upgrade, or guests on premade voices.
 
 ## Test results (2026-11-02)
 
@@ -74,35 +74,46 @@ Both versions open with the chime and the stop's cached title.
 
 - **A, stitched:** one eleven_v4 with-timestamps request per turn, with neighbouring turns as
   `previous_text`/`next_text`. Each turn is trimmed to its speech and joined with 0.6 s gaps.
-  Output: `build/lab-005/stop-6-excerpt-A-stitched.mp3`, 73 s.
+  Output: `build/lab-005/stop-6-excerpt-A-stitched.mp3`, 75 s.
 - **B, dialogue:** one `POST /v1/text-to-dialogue/with-timestamps` request with
   `model_id = eleven_v4`, which the endpoint accepts. It's kept as one take, cut once in the
-  silence before the splash. Output: `build/lab-005/stop-6-excerpt-B-dialogue.mp3`, 64 s.
+  silence before the splash. Output: `build/lab-005/stop-6-excerpt-B-dialogue.mp3`, 65 s.
   Hand-offs between speakers are 0.25–0.35 s, which is why it runs shorter.
 
-**Credits actually used.** The account went from 22,159 to 22,686 credits used, a total of
-527. No other worktree spent anything in that window.
+**Credits actually used.** The account went from 22,159 to 22,915 credits used, a total of
+756: 527 for the first round with Charlie, then 229 to re-render with `Tour-Platypus`. No
+other worktree spent anything in that window.
 
 | Item | Credits | Source |
 | --- | --- | --- |
 | River bed, 15 s, loop, 1 take | 82 | `character-cost` header |
 | Splash, 2 s, 1 take | 11 | header |
 | Platypus Voice Design, 1 round (3 previews, 131-character preview text) | ~131 | account delta (the endpoint sends no cost header) |
-| A: 11 TTS requests, 688 characters | 152 | headers |
-| B: 1 dialogue request, 688 characters | 151 | header |
+| A with Charlie: 11 TTS requests, 688 characters | 152 | headers |
+| B with Charlie: 1 dialogue request, 688 characters | 151 | header |
+| Saving preview 1 as `Tour-Platypus` | 0 | free |
+| A with `Tour-Platypus`: 5 platypus turns, 355 characters (the narrator turns were cached) | 78 | headers |
+| B with `Tour-Platypus`: the whole dialogue again, 688 characters | 151 | header |
 
 The two methods cost the same: about 0.22 credits per character on this payg plan, whether as
 TTS or dialogue. Sound effects cost about 5.5 credits per second. Voice Design came to about
 1 credit per character of preview text, charged once per round, not per preview.
 
-**The designed platypus voice wasn't used.** Saving it failed because the account is at its
-3/3 custom-voice limit, and TTS rejects an unsaved preview id with a 404. Both versions use
-the premade **Charlie** (young, Australian, energetic) instead. The three design previews are
-in `build/lab-005/platypus-design-{1,2,3}.mp3` for listening.
+**Guest voice.** At first the designed voice couldn't be saved: the account was at its 3/3
+custom-voice limit, and TTS rejects an unsaved preview id with a 404. So the first renders used
+the premade **Charlie** (young, Australian, energetic), kept as
+`build/lab-005/stop-6-excerpt-{A-stitched,B-dialogue}-charlie.mp3`. After a slot was freed,
+design preview 1 was saved as **`Tour-Platypus`** (`gDRccCpQyi22aTpudovx`, the preview's id
+kept as the voice id, from Voice Design `eleven_ttv_v3` on 2026-11-02). Both excerpts were then
+re-rendered with it. All three previews are in `build/lab-005/platypus-design-{1,2,3}.mp3`.
+
+The re-render shows what a voice change costs. With A, only the guest's lines are re-rendered,
+78 credits. With B, the whole exchange is re-rendered, 151 credits.
 
 **Ducking.** The bed sits 9 dB below the voice and is pushed down by a sidechain compressor
 keyed on the voice (ratio 4). Measured against the voice, it comes out at about −18.5 to
-−19.5 dB under speech and about −13.5 dB in the gaps. That matches `6-sound.md`. Listen to
+−19.5 dB under speech with Charlie, and about −21.5 dB with the louder `Tour-Platypus`. It's
+about −13.5 dB in the gaps. That matches `6-sound.md`. Listen to
 both versions on a phone speaker before settling the levels.
 
 **Extrapolation.**

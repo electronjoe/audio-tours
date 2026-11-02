@@ -11,8 +11,10 @@ spend.Guard with the hobart book, so the cache and ledger are the tour's own. Th
 the real feature belongs in script.py / render.py / master.py.
 
 Findings baked in (2026-11-02): `design` can't save while the account is at its custom-voice
-limit (3/3), and an unsaved preview id is a 404 for TTS, so the test fell back to the premade
-Charlie, recorded in build/lab-005/platypus-voice.json. eleven_v4 works with text-to-dialogue.
+limit, and an unsaved preview id is a 404 for TTS. The first renders used the premade Charlie
+(kept as build/lab-005/*-charlie.mp3); once a slot was freed, preview 1 was saved as
+Tour-Platypus (same id as the preview) and both excerpts re-rendered. The voice in use is
+recorded in build/lab-005/platypus-voice.json. eleven_v4 works with text-to-dialogue.
 """
 
 from __future__ import annotations
@@ -115,7 +117,7 @@ def cmd_design() -> None:
         (OUT / f"platypus-design-{i}.mp3").write_bytes(base64.b64decode(p["audio_base_64"]))
     if not VOICE_FILE.exists():  # take preview 1, as agreed (saving is free)
         v = eleven.save_designed_voice(
-            "Tour-Tasmania-Platypus", DESIGN["description"], previews[0]["generated_voice_id"],
+            "Tour-Platypus", DESIGN["description"], previews[0]["generated_voice_id"],
             labels={"tour": "hobart", "role": "platypus", "series": "audio-tours"},
             not_selected=[p["generated_voice_id"] for p in previews[1:]])
         VOICE_FILE.write_text(json.dumps({"voice_id": v["voice_id"], "preview": 1}, indent=2))
