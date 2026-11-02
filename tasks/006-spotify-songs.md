@@ -1,6 +1,6 @@
 # 006: Song moments with Spotify links
 
-Status: doing (built: song table, `tour check` link and length check, publish, Now card with the room rule; needs songs in a tour and a phone test) · Priority: medium · Raised: 2026-11-02 (Hobart road test)
+Status: doing (built and deployed; Hobart stop 8 has a song. Needs its spoken segment, more songs and a phone test) · Priority: medium · Raised: 2026-11-02 (Hobart road test)
 
 ## Why
 
@@ -134,6 +134,21 @@ minutes.
     median speed the song button needs.
 - Optional: a "Drive soundtrack" list under More with every song in the tour.
 
+### First song in a tour (2 Nov 2026)
+
+- **Hobart stop 8** (leaving New Norfolk for Hobart, the last stop) has "Mt Wellington Reverie"
+  by Augie March (3:44, not marked explicit). Glenn Richards wrote it during a week in Hobart
+  after a run of shows ("starting to get the sense that this was a place I wanted to be",
+  Rolling Stone Australia, 9 Mar 2026; quoted in `tour.toml`), and later moved to Hobart.
+  kunanyi / Mt Wellington stands over the city at the end of the drive.
+- **Track ID:** found without an account. Wikidata gave Augie March's Spotify artist ID; the
+  artist page listed the album IDs, the album page the track IDs, and oEmbed named each one.
+  `tour check` then confirmed the title and the 224 s length.
+- **Room:** stop 8 is the last stop, so nothing is armed after it and the player always offers
+  ▶ Play. `plan-check` gives 1003 s spare after the audio, song and margin.
+- **Still to do:** the spoken song segment (30–60 s) at the end of stop 8's script, which needs
+  a paid re-render; and 1–3 more songs to reach the 2–4 the topics rule asks for.
+
 ### As built (2 Nov 2026)
 
 - **Song table and check** (`src/audiotour/songs.py`). `[stops.<id>.song]` takes exactly
@@ -193,8 +208,8 @@ minutes.
 - [x] `tour check` rejects a song link whose oEmbed title doesn't match `title`
       (`tests/test_songs.py`).
 - [ ] A stop with a song has a spoken song segment that names the song and the artist and says
-      why it is there. (Content: no tour has a song yet. `tour check` warns when a song stop's
-      script doesn't name the song and the artist.)
+      why it is there. (Hobart stop 8 has a song but no segment yet: writing it changes the
+      script and needs a paid re-render of stop 8. `tour check` warns until it is done.)
 - [x] `tests/player_drive.py` checks that the song card appears after the stop ends and clears
       when the next stop starts.
 

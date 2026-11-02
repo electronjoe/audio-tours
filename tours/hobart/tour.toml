@@ -137,3 +137,15 @@ lat = -42.78407
 lon = 147.09072
 radius = 900
 place = "Leaving New Norfolk towards Hobart (Boyer Mill is across the river)"
+
+# Song for the drive home (task 006). Source for `why`: Glenn Richards, Rolling Stone Australia,
+# 9 Mar 2026 (au.rollingstone.com/music/music-features/augie-march-interview-moo-you-bloody-choir-anniversary-tour-92098):
+# "I wrote it when I stayed here for a week after a run of shows. I was still living in Melbourne
+# but starting to get the sense that this was a place I wanted to be." Not marked explicit on Spotify.
+# The spoken song segment in stop 8's script isn't written or rendered yet.
+[stops.stop-8.song]
+title = "Mt Wellington Reverie"
+artist = "Augie March"
+spotify = "https://open.spotify.com/track/4UEQt3kGmXQ9QsvxL459gY"
+length = "3:44"
+why = "Augie March's Glenn Richards wrote it during a week in Hobart after a run of shows, already sensing this was where he wanted to be. He later moved here for good."
