@@ -54,3 +54,17 @@ two plausible causes, and neither has been confirmed:
 - [ ] The event log shows why each stop started.
 - [ ] `tests/player_drive.py` is updated: the reload check expects Resume, not auto-play, and
       new checks cover "Start plays nothing" and "coarse fix ignored".
+
+## Notes from the 2–3 Nov 2026 round
+
+- **Since 002, the markup lives in one template, `site/player/tour.html`.** Edit it, then run
+  `uv run tour pages`, which needs no audio build. `test_hobart_pages_match_committed` fails if
+  the committed pages weren't regenerated. The element ids, element order and `../player/`
+  paths are unchanged, so the `player_drive.py` selectors still hold. `start()`, `save()` and
+  `load()` in `app.js` weren't touched. `savedAt` and the event log belong in localStorage,
+  not `tour.json`.
+- **GPS after a gap (phone test, task 006):** Chrome sends no fixes while the page is hidden.
+  The first fixes after a return arrive 4–7 s later at ±26–54 m, can jump around for about
+  5 s, and may be 1–1.5 km from the last fix. That supports gating on accuracy right after a
+  gap. 006 specifies a `catch-up` trigger cause for stops passed while away, so the event log
+  here should leave room for it.
