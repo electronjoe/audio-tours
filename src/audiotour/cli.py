@@ -10,7 +10,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from . import config, eleven, master, publish, render
+from . import config, eleven, master, publish, render, songs
 from . import route as route_tools
 from .script import Problem, check_file, load_tracks
 from .spend import Guard, read_ledger
@@ -44,7 +44,8 @@ def cmd_estimate(args: argparse.Namespace) -> None:
 
 
 def cmd_check(args: argparse.Namespace) -> None:
-    """Report everything in the draft that breaks docs/script-format.md; exit 1 on errors."""
+    """Report everything in the draft that breaks docs/script-format.md, and check each song's
+    Spotify link (tasks/006); exit 1 on errors."""
     tour = config.tour(args.tour, args.draft)
     problems = check_file(tour.draft, tour.settings)
     for t in load_tracks(tour.draft):
@@ -55,8 +56,11 @@ def cmd_check(args: argparse.Namespace) -> None:
         where = f"{path}:{p.line}" if p.line else str(path)
         print(f"{where}: {'error' if p.error else 'warning'}: {p.message}")
     errors = sum(p.error for p in problems)
+    warnings = len(problems) - errors
+    song_errors, song_warnings = songs.report(tour, online=not args.offline)  # tasks/006
+    errors, warnings = errors + song_errors, warnings + song_warnings
     tracks = load_tracks(tour.draft)
-    print(f"{len(tracks)} tracks, {errors} errors, {len(problems) - errors} warnings")
+    print(f"{len(tracks)} tracks, {errors} errors, {warnings} warnings")
     if errors:
         sys.exit(1)
 
@@ -244,9 +248,10 @@ def main() -> None:
     p.add_argument("--draft", metavar="FILE", help="another draft in tours/<tour>/source/ (builds into build/<its name>/)")
     p.set_defaults(func=cmd_estimate)
 
-    p = sub.add_parser("check", help="offline: check the draft against docs/script-format.md")
+    p = sub.add_parser("check", help="free: check the draft against docs/script-format.md, and song links with Spotify")
     p.add_argument("tour", help="tour slug under tours/, e.g. hobart")
     p.add_argument("--draft", metavar="FILE", help="another draft in tours/<tour>/source/ (builds into build/<its name>/)")
+    p.add_argument("--offline", action="store_true", help="don't ask Spotify about song links (warns instead)")
     p.set_defaults(func=cmd_check)
 
     p = sub.add_parser("account", help="free: plan tier and credits remaining")

@@ -20,6 +20,9 @@ points. Checks:
 - the event log shows why each stop started
 - every stop card has Navigate from here: a Maps route through that stop and every later
   one to the tour's end; stop 6's goes back through New Norfolk to Hobart
+- a song on a stop (a fixture served in place of tour.json, never committed): the Now card
+  shows it only after the stop ends, offers ▶ Play on Spotify or Save for later by the room
+  before the next trigger, clears when the next stop starts, and stays in the stop's card
 - after Download, the tour opens and plays with the network off
 
 The screenshot goes to tours/<tour>/build/player-test.png, or to $PLAYER_TEST_SHOT.
@@ -45,9 +48,23 @@ TOUR = sys.argv[1] if len(sys.argv) > 1 else "hobart"
 SECONDS_PER_POINT = 300 / 22
 
 
+OVERRIDE: dict[str, bytes] = {}  # URL path -> body served instead of the file (test fixtures)
+
+
 class Quiet(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args) -> None:
         pass
+
+    def do_GET(self) -> None:
+        body = OVERRIDE.get(self.path.split("?")[0])
+        if body is None:
+            return super().do_GET()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
 
 
 def serve() -> str:
@@ -116,6 +133,63 @@ def check_nav_links(page, tour: dict, check) -> None:
     if TOUR == "hobart":
         check("New Norfolk" in stops[7]["place"] and end == tour["route"]["return"][-1],
               "stop 6's route goes back through New Norfolk (stop 8) to Hobart (the end of the return leg)")
+
+
+def song_check(page, ctx, tour: dict, check) -> None:
+    """A song on the first stop, served from a fixture copy of tour.json (task 006)."""
+    s1, s2 = tour["stops"][0], tour["stops"][1]
+    song = {"title": "Test Song", "artist": "Test Artist", "spotify": "https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC",
+            "length": 214, "why": "A fixture song for the player test."}
+    fixture = json.loads(json.dumps(tour))
+    fixture["stops"][0]["song"] = song
+    OVERRIDE[f"/{TOUR}/tour.json"] = json.dumps(fixture).encode()
+    # Room = straight line to the edge of the next zone / speed (at least 8 m/s) > length + 60 s.
+    edge = metres((s1["lat"], s1["lon"]), (s2["lat"], s2["lon"])) - s2["radius"]
+    assert edge / 10 > song["length"] + 60 and edge / 50 < song["length"] + 60, "pick another fixture length"
+    near = next(pt for pt in tour["route"]["outbound"]
+                if 0 < metres(pt, (s2["lat"], s2["lon"])) - s2["radius"] < 10 * (song["length"] + 60) - 300)
+
+    def fix(lat, lon, speed):
+        page.evaluate("([lat, lon, v]) => window.__tour.onFix(lat, lon, 8, v)", [lat, lon, speed])
+        page.wait_for_timeout(200)
+
+    def card() -> str:
+        return page.inner_text("#now")
+
+    try:
+        fresh(page)
+        check(page.evaluate("() => Boolean(window.__tour.S.tour.stops[0].song)"), "the fixture tour.json (with a song) is served")
+        ctx.set_geolocation({"latitude": s1["lat"], "longitude": s1["lon"], "accuracy": 8})
+        page.click("#start")
+        page.wait_for_timeout(300)
+        fix(s1["lat"], s1["lon"], 10)
+        page.wait_for_function("() => window.__tour.S.current", timeout=5000)
+        st = state(page)
+        check(st["current"] == s1["id"] and song["title"] not in card(),
+              f"while {s1['id']} plays, no song card (current={st['current']}, queue={st['queue']}, now={card()[:120]!r})")
+        page.click(f"details.stop[data-id={s1['id']}] summary")
+        link = page.locator(f"details.stop[data-id={s1['id']}] a.song-link")
+        check(link.count() == 1 and link.get_attribute("href") == song["spotify"], "the song is in the stop's expanded card")
+        finish_current(page)
+        page.wait_for_timeout(300)
+        play = page.locator("#now a.song-play")
+        check(state(page)["current"] is None and song["title"] in card() and song["why"] in card(),
+              "after the stop ends, the Now card shows the song")
+        check(play.count() == 1 and play.get_attribute("href") == song["spotify"] and play.get_attribute("target") == "_blank",
+              f"{edge / 1000:.1f} km to the next zone at 10 m/s: ▶ Play on Spotify")
+        check(any(e["ev"] == "song" and e.get("room") for e in state(page)["log"]), "event log: song offered with room")
+        fix(s1["lat"], s1["lon"], 50)
+        check(play.count() == 0 and "Save for later" in card(), "the same place at 50 m/s: Save for later")
+        fix(*near, 10)
+        check(play.count() == 0 and "Save for later" in card(), f"{(metres(near, (s2['lat'], s2['lon'])) - s2['radius']) / 1000:.1f} km from the next zone: Save for later")
+        fix(s1["lat"], s1["lon"], 10)
+        check(play.count() == 1 and "Save for later" not in card(), "back where there is room: ▶ Play on Spotify again")
+        fix(s2["lat"], s2["lon"], 10)
+        st = state(page)
+        check(st["current"] == s2["id"] and song["title"] not in card(), f"the card clears when {s2['id']} starts")
+        check(link.count() == 1, "and the song stays in the stop's card")
+    finally:
+        OVERRIDE.clear()
 
 
 def main() -> None:
@@ -311,6 +385,9 @@ def main() -> None:
         ctx.set_geolocation({"latitude": out[k + 1][0], "longitude": out[k + 1][1], "accuracy": 60})
         page.wait_for_timeout(300)
         check(state(page)["away"] and "settling" in page.inner_text("#status"), "25 s without a fix: the next rough fix waits for a better one")
+
+        print("Song")
+        song_check(page, ctx, tour, check)
 
         print("Offline")
         fresh(page)
