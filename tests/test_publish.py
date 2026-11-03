@@ -72,7 +72,8 @@ def test_second_tour_needs_no_hand_written_files(tmp_path):
 
     page = (site / "demo" / "index.html").read_text()
     assert "<title>Demo Walk</title>" in page and "${" not in page
-    assert all(f'<script src="../player/{js}"></script>' in page for js in ("app.js", "map.js", "view.js"))
+    v = publish.player_version()
+    assert all(f'<script src="../player/{js}?v={v}"></script>' in page for js in ("app.js", "map.js", "view.js"))
     manifest = json.loads((site / "demo" / "manifest.webmanifest").read_text())
     assert manifest["name"] == manifest["short_name"] == "Demo Walk"
     assert manifest["theme_color"] == publish.DEFAULT_THEME

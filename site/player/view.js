@@ -180,11 +180,14 @@ function glanceParts() {
     };
   }
   if (cur) {
-    const q = S.queue[0];
+    const q = S.queue[0], wait = S.loading === cur;
     return {
-      center: ringBtn("pause", "pause", audio.paused ? "play" : "pause", audio.paused ? "Play" : "Pause"),
-      cap: `<p class="label">${audio.paused ? "Paused" : "Now playing"} · ${cur.n} of ${all}</p><h1 class="big">${cur.title}</h1>
-        <p class="sub"><span id="left"></span> left</p>${q ? `<p class="then">Then ${q.n} · ${q.title}</p>` : ""}`,
+      // While the audio arrives: no pause button (it would wake the old story), and "Loading…",
+      // which fades in late so a saved story, there in a blink, doesn't flash it.
+      center: wait ? `<div class="ring-txt" id="loading"><span class="unit wait">Loading…</span></div>`
+        : ringBtn("pause", "pause", audio.paused ? "play" : "pause", audio.paused ? "Play" : "Pause"),
+      cap: `<p class="label">${audio.paused && !wait ? "Paused" : "Now playing"} · ${cur.n} of ${all}</p><h1 class="big">${cur.title}</h1>
+        <p class="sub">${wait ? "&nbsp;" : `<span id="left"></span> left`}</p>${q ? `<p class="then">Then ${q.n} · ${q.title}</p>` : ""}`,
       left: `<button class="dock-btn" id="skip" data-act="skip">Skip story</button>`,
     };
   }
@@ -272,7 +275,7 @@ function mapCardHTML() {
   if (S.song?.song) return songOffer("map-offer");
   const cur = S.current;
   if (cur) return `<p class="label">Now playing · ${cur.n} of ${all}</p><p class="o-title">${cur.title}</p>
-    <p class="o-why">${cur.place ? `${cur.place} · ` : ""}<span id="p2-left"></span> left</p>${songLine(cur)}`;
+    <p class="o-why">${cur.place ? `${cur.place} · ` : ""}${S.loading === cur ? `<span class="wait">Loading…</span>&nbsp;` : `<span id="p2-left"></span> left`}</p>${songLine(cur)}`;
   if (finished()) return `<p class="label">No more stories</p><p class="o-title">${heardCount()} of ${all} stories heard</p>`;
   const n = nextStory();
   // No "N of M" here (the car screen has it): with the distance and minutes, the line wrapped.
@@ -413,7 +416,8 @@ function tick() {
   if (!S.tour) return;
   let frac = 0;
   const cur = S.current;
-  if (cur) {
+  if (cur && S.loading === cur) frac = 0;
+  else if (cur) {
     const dur = audio.duration || cur.duration || 0, t = audio.currentTime || 0;
     frac = dur ? t / dur : 0;
     for (const el of [$("#left"), $("#p2-left")]) if (el) el.textContent = mmss(Math.max(0, dur - t));
@@ -465,7 +469,7 @@ const ACT = {
   closeSheet() { V.sheet = false; },
   toggle(i) { V.open = V.open === i ? null : i; },
   toggleLog() { V.log = !V.log; if (V.log) renderLog(); },
-  pause() { audio.paused ? audio.play() : audio.pause(); },
+  pause() { if (!S.loading) audio.paused ? audio.play() : audio.pause(); },
   skip,
   tapPlay: playNext,
   playNow(i) { begin(); trigger(i, { cause: "manual" }); },

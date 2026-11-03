@@ -7,7 +7,9 @@ audio, then the pages. ``pages`` rewrites only the pages, for every published to
 hand-written except the player itself (``site/player/``, ``site/sw.js``).
 
 Audio files get a content hash in their name, so a re-master is a new URL and
-phones that downloaded the old one fetch the new one instead of a stale cache.
+phones that downloaded the old one fetch the new one instead of a stale cache. The pages
+load the player as ``app.js?v=<hash>`` (``player_version``) for the same reason: a page
+and its code always come from one deploy, never a new page with yesterday's cached script.
 """
 
 from __future__ import annotations
@@ -25,6 +27,7 @@ from .script import load_tracks
 
 SITE_DIR = config.REPO_ROOT / "site"
 PLAYER_DIR = SITE_DIR / "player"  # the templates; tests publish elsewhere but use these
+PLAYER_FILES = ("app.js", "map.js", "view.js", "style.css")  # what the pages load with ?v=
 SCHEMA = 1  # tour.json format version; bump only for changes an older player would misread
 MODES = ("drive", "walk")
 DEFAULT_THEME = "#14532d"
@@ -157,7 +160,7 @@ def write_pages(tour: config.Tour, site_dir: Path = SITE_DIR) -> None:
     out.mkdir(parents=True, exist_ok=True)
     f = page_fields(tour, site_dir)
     page = _template("tour.html").substitute(
-        title=html.escape(f["title"]), theme_color=html.escape(f["theme_color"]))
+        title=html.escape(f["title"]), theme_color=html.escape(f["theme_color"]), v=player_version())
     manifest = _template("tour.webmanifest").substitute(
         {k: json.dumps(v, ensure_ascii=False) for k, v in
          {"name": f["title"], "short_name": f["short_name"], "theme_color": f["theme_color"]}.items()})
@@ -203,8 +206,17 @@ def write_index(site_dir: Path = SITE_DIR) -> None:
     tours = [(p.parent.name, _read_json(p)) for p in published(site_dir)]
     tours.sort(key=lambda t: (t[1].get("title", t[0]).lower(), t[0]))
     cards = "\n".join(tour_card(slug, data) for slug, data in tours) or "<li>No tours published yet.</li>"
-    (site_dir / "index.html").write_text(_template("home.html").substitute(tours=cards))
+    (site_dir / "index.html").write_text(_template("home.html").substitute(tours=cards, v=player_version()))
     print(f"  -> {(site_dir / 'index.html').relative_to(site_dir.parent)} ({len(tours)} tours)")
+
+
+def player_version() -> str:
+    """A hash of the player's code and styles. sw.js serves ``?v=`` files cache-first, so an
+    old page kept offline runs its own old code, and a new page fetches the new."""
+    h = hashlib.sha256()
+    for name in PLAYER_FILES:
+        h.update((PLAYER_DIR / name).read_bytes())
+    return h.hexdigest()[:8]
 
 
 def _template(name: str) -> Template:

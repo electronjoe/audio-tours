@@ -8,7 +8,7 @@
 <title>${title}</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="../player/icon-192.png">
-<link rel="stylesheet" href="../player/style.css">
+<link rel="stylesheet" href="../player/style.css?v=$v">
 </head>
 <body>
 <section id="setup" hidden></section>
@@ -43,8 +43,9 @@
   <button class="o-no" id="sim" data-act="sim" hidden>Simulate drive</button>
 </section>
 <div id="toast" role="status" hidden></div>
-<script src="../player/app.js"></script>
-<script src="../player/map.js"></script>
-<script src="../player/view.js"></script>
+<!-- ?v= is the player version from `tour pages`: a new page never runs stale cached code. -->
+<script src="../player/app.js?v=$v"></script>
+<script src="../player/map.js?v=$v"></script>
+<script src="../player/view.js?v=$v"></script>
 </body>
 </html>

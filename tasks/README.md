@@ -22,6 +22,8 @@ acceptance boxes (songs, segments, more voices) are proven on the next tour.
 | 008 | [Route and stop tools: `tour route`, `tour plan-check`](008-route-and-stop-tools.md) | done | Process docs (004) |
 | 009 | [Player redesign: the glance screen and a map page (A.3)](009-player-redesign.md) | doing (branch `player-redesign`: steps 1–8 done; road test next) | Player redesign demos |
 | 010 | [A base map for each tour, drawn from OpenStreetMap at publish time](010-tour-base-map.md) | doing (branch `player-redesign`: `tour map` built, Hobart's map.json drawn on the map page; needs a phone check) | Player redesign demos |
+| 011 | [Play now on a slow link: stop the old story at once, show Loading…](011-slow-link-play-now.md) | done (deployed; needs a slow-link check) | Cruise ship Wi-Fi |
+| 012 | [A page and its player code always come from one deploy](012-page-and-code-from-one-deploy.md) | done | First phone load after 009 |
 
 ## Template
 

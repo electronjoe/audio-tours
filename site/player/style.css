@@ -88,6 +88,13 @@ a { color: var(--accent); }
 .ring-txt { align-content: center; gap: 2px; }
 .huge { font-size: clamp(44px, 15vw, 64px); font-weight: 800; line-height: 1; letter-spacing: -.02em; }
 .unit { font-size: 16px; color: var(--muted); }
+/* Audio still arriving: "Loading…" and a breathing ring, both held back half a second so a saved
+   story, which starts in a blink, never flashes them. */
+.wait { opacity: 0; animation: wait-in .3s .5s forwards; }
+#loading .wait { font-size: 20px; font-weight: 700; }
+.ring:has(#loading) .track { animation: wait-pulse 1.6s .5s ease-in-out infinite; }
+@keyframes wait-in { to { opacity: 1; } }
+@keyframes wait-pulse { 50% { stroke: var(--accent); stroke-opacity: .45; } }
 .label { margin: 22px 0 4px; font-size: 14px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
 .big { margin: 0; font-size: clamp(26px, 7.4vw, 32px); line-height: 1.15; letter-spacing: -.01em; }
 .sub { margin: 8px 0 0; color: var(--muted); font-size: 17px; }
@@ -238,6 +245,7 @@ a { color: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
   .ring .val, .prog > div, .dots span { transition: none; }
   .m-zone.playing { animation: none; }
+  .ring:has(#loading) .track { animation: none; }
 }
 
 /* The tour list (home.html): the setup screen's look, one row per tour. */

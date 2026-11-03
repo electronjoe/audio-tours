@@ -34,6 +34,9 @@ points. Checks:
   its place names show beside the pins (New Norfolk, near stop 2)
 - pin labels (`label`): on exactly the stops that have one, never covering another label or
   a pin; the pin card shows a stop's `teaser` (escaped), else its `place`
+- a slow link (audio requests held): Play now silences the old story at once, the car screen
+  says Loading… (no pause button) until the audio arrives, a load overtaken by a newer Play now
+  is dropped, and Skip during a load leaves nothing playing when it lands
 - after Download, the tour opens and plays with the network off, map page and base map too
 
 The final screenshot goes to tours/<tour>/build/player-test.png, or to $PLAYER_TEST_SHOT.
@@ -106,6 +109,9 @@ SEL: dict[str, str | tuple[str, ...] | None] = {
     "map_places": "#p2 .m-place, #p2 .m-lbl",  # names on the map: place names and pin labels
     "map_labels": "#p2 .m-lbl",
     "map_attr": "#map-attr",
+    "loading": "#loading",  # the ring while a story's audio is still arriving
+    "pause": "#pause",
+    "skip": "#skip",
 }
 
 
@@ -722,6 +728,9 @@ def drive_checks(browser, url: str, tour: dict, check, failures: list[str]) -> N
     print("Pin labels and teasers")
     label_check(page, ctx, tour, check)
 
+    print("Slow link")
+    slow_check(browser, url, tour, check)
+
     print("Offline")
 
     fresh(page)
@@ -754,6 +763,74 @@ def drive_checks(browser, url: str, tour: dict, check, failures: list[str]) -> N
 # A scene that needs something this UI doesn't have (SEL None) is skipped.
 
 VIEWS = {"portrait": {"width": 412, "height": 860}, "landscape": {"width": 860, "height": 390}}
+def slow_check(browser, url: str, tour: dict, check) -> None:
+    """Audio on a slow link (a cruise ship's): every .mp3 request is held until released, in a
+    context of its own with no service worker, so page.route sees the player's fetches."""
+    stops = tour["stops"]
+    ids, out = [s["id"] for s in stops], tour["route"]["outbound"]
+    a, b, c, d = 0, len(stops) - 1, len(stops) - 2, 1
+    ctx = browser.new_context(permissions=["geolocation"], geolocation={"latitude": out[0][0], "longitude": out[0][1]},
+                              service_workers="block")
+    page = ctx.new_page()
+    held: list = []
+    page.route("**/*.mp3", lambda route: held.append(route))
+
+    def release(stop: int) -> None:
+        r = next(r for r in held if r.request.url.endswith("/" + stops[stop]["audio"].split("/")[-1]))
+        held.remove(r)
+        r.continue_()
+
+    def ready(k: int) -> None:
+        page.wait_for_function("(id) => window.__tour.S.current?.id === id && !window.__tour.S.loading && !window.__tour.audio.paused",
+                               arg=ids[k], timeout=10000)
+
+    def play_here(k: int) -> None:
+        tap(page, "open_stop", id=ids[k])
+        tap(page, "stop_here", id=ids[k])
+
+    loading = lambda: page.evaluate("() => window.__tour.S.loading?.id || null")
+    page.goto(url)
+    page.wait_for_function("() => window.__tour")
+    tap(page, "start")
+    play_here(a)
+    page.wait_for_timeout(700)  # past the half second "Loading…" waits, so it isn't a flash
+    check(loading() == ids[a] and page.is_visible(sel("loading")) and "Loading" in page.inner_text(sel("car"))
+          and not page.is_visible(sel("pause")), "a story whose audio is still arriving shows Loading…, no pause button")
+    release(a)
+    ready(a)
+    check(not page.is_visible(sel("loading")), f"its audio arrives: story {a + 1} plays, Loading… gone")
+
+    page.wait_for_timeout(300)
+    play_here(b)
+    st = state(page)
+    check(st["paused"] and st["current"] == ids[b] and loading() == ids[b],
+          f"Play now on story {b + 1}: story {a + 1} stops at once, before story {b + 1}'s audio arrives")
+    play_here(c)
+    release(b)  # the overtaken load lands first, and is dropped
+    page.wait_for_timeout(500)
+    st = state(page)
+    check(st["paused"] and st["current"] == ids[c] and loading() == ids[c],
+          f"Play now on {c + 1} while {b + 1} loads: {b + 1}'s late audio is dropped ({st['current']}, paused={st['paused']})")
+    release(c)
+    ready(c)
+    dur = page.evaluate("() => window.__tour.audio.duration")
+    check(abs(dur - stops[c]["duration"]) < 1.5, f"and story {c + 1}'s own audio plays ({dur:.0f} s, want {stops[c]['duration']:.0f})")
+
+    play_here(a)  # in the cache now: no request, no Loading…
+    ready(a)
+    page.wait_for_timeout(700)
+    check(not page.is_visible(sel("loading")) and not held, "a story already fetched starts without Loading…")
+    play_here(d)
+    tap(page, "skip")
+    page.wait_for_timeout(200)
+    release(d)
+    page.wait_for_timeout(500)
+    st = state(page)
+    check(st["current"] is None and st["paused"] and st["status"].get(ids[d]) == "skipped",
+          f"Skip while story {d + 1} loads: nothing plays when its audio lands ({st['current']}, paused={st['paused']})")
+    ctx.close()
+
+
 def label_check(page, ctx, tour: dict, check) -> None:
     """Task 009 step 7: pins show their `label`, labels never cover each other or a pin, and the
     pin card shows the `teaser`, else `place`."""

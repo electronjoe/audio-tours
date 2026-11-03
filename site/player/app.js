@@ -66,12 +66,21 @@ const S = {
   wakeLock: null,
   sim: null,
   blocked: false, // the browser refused to start audio; show a "Tap to play" button
+  loading: null, // the stop whose audio is still arriving (S.current, not yet in the element)
   base: null, // map.json (task 010), once loaded
 };
 const audio = new Audio();
 audio.preload = "auto";
 let objectURL = null;
 let loaded = null; // the stop whose audio is in the element (null: Start's unlock clip)
+let plays = 0; // bumped by every play and stop, so a slow load that a newer one replaced is dropped
+
+/** Silence the element now, and drop any load still in flight. */
+function halt() {
+  plays++;
+  S.loading = null;
+  audio.pause();
+}
 
 // --- persistence --------------------------------------------------------------
 
@@ -283,7 +292,7 @@ function resetTour() {
   S.missed = [];
   S.song = null;
   S.along = null;
-  audio.pause();
+  halt();
   S.current = null;
   logEvent("reset");
   save();
@@ -315,18 +324,27 @@ function playNext() {
 async function play(s) {
   settleOffers(s);
   S.song = null;
+  // The old story stops now, not when the new one has arrived: on a slow link that can be a minute.
+  halt();
+  const ticket = plays;
   S.current = s;
+  S.loading = s;
   logEvent("play", s, S.why[s.id] || { cause: "manual" });
   render();
   try {
+    const blob = await audioBlob(s);
+    if (ticket !== plays) return; // another story was asked for, or this one skipped, meanwhile
     if (objectURL) URL.revokeObjectURL(objectURL);
-    objectURL = URL.createObjectURL(await audioBlob(s));
+    objectURL = URL.createObjectURL(blob);
     audio.src = objectURL;
     loaded = s;
+    S.loading = null;
     await audio.play();
   } catch (err) {
+    if (ticket !== plays) return;
     // Usually autoplay being refused, or audio that isn't downloaded while offline.
     toast(`Couldn't play stop ${s.n}: ${err.message}`);
+    S.loading = null;
     S.current = null;
     S.queue.unshift(s);
     S.blocked = true;
@@ -356,13 +374,13 @@ audio.addEventListener("ended", () => {
 function skip() {
   if (!S.current) return;
   S.status[S.current.id] = "skipped";
-  audio.pause();
+  halt();
   save();
   playNext();
 }
 
 if ("mediaSession" in navigator) {
-  navigator.mediaSession.setActionHandler("play", () => audio.play());
+  navigator.mediaSession.setActionHandler("play", () => S.loading || audio.play());
   navigator.mediaSession.setActionHandler("pause", () => audio.pause());
   navigator.mediaSession.setActionHandler("nexttrack", skip);
   navigator.mediaSession.setActionHandler("previoustrack", () => (audio.currentTime = 0));
