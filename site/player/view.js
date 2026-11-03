@@ -29,7 +29,16 @@ const ICON = {
   pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h4.5v16H6zM13.5 4H18v16h-4.5z"/></svg>',
 };
 const LABEL = { playing: "Playing now", queued: "Next, after this one", resume: "Cut off: ready to resume", played: "Heard",
-  skipped: "Skipped", missed: "Passed while away", armed: "Coming up", upcoming: "Later" };
+  skipped: "Skipped", missed: "Passed while away", next: "Next", upcoming: "Later" };
+
+/** A stop's state as shown: of the armed stops (GPS may start any of the next `lookahead`),
+ *  only the first is "next", and only while nothing is queued (the queued one is next then);
+ *  the rest show as "upcoming", like any later stop. */
+function shownState(s, i) {
+  const st = stateOf(s, i);
+  if (st !== "armed") return st;
+  return !S.queue.length && armed()[0] === i ? "next" : "upcoming";
+}
 const HELP = `Keep this page open on screen while you drive; navigation can run in the background.
   Stories start by themselves as you reach each place, in order, and never interrupt each other: if two
   start close together, the second waits. The ring counts down to the next one. <b>Play it now</b>, or
@@ -254,7 +263,7 @@ function mapCardHTML() {
   const all = stops().length, i = MAP.sel;
   const songLine = (s) => (s.song ? `<p class="o-why song-line">♪ Then a song: ${esc(s.song.title)} · ${esc(s.song.artist)}</p>` : "");
   if (i != null) {
-    const s = stops()[i], st = stateOf(s, i), nav = navLink(S.tour, i);
+    const s = stops()[i], st = shownState(s, i), nav = navLink(S.tour, i);
     return `<div class="offer pin-card" id="pin-card" data-id="${s.id}"><p class="label">Story ${s.n} · ${LABEL[st]}</p>
       <p class="o-title">${s.title}</p><p class="o-why">${[s.teaser ? esc(s.teaser) : s.place, s.duration ? mmss(s.duration) : "no audio yet"].filter(Boolean).join(" · ")}</p>
       ${songLine(s)}<div class="o-row"><button class="o-yes" id="pin-play" data-act="mapPlay" data-i="${i}">${st === "playing" ? "Restart" : "Play now"}</button>
@@ -285,7 +294,7 @@ function backToStory() {
 
 function storiesHTML() {
   return stops().map((s, i) => {
-    const state = stateOf(s, i), nav = navLink(S.tour, i), g = s.song;
+    const state = shownState(s, i), nav = navLink(S.tour, i), g = s.song;
     const facts = [s.place, s.duration ? mmss(s.duration) : "no audio yet", LABEL[state]].filter(Boolean).join(" · ");
     return `<li class="row st-${state}" data-id="${s.id}">
       <button class="row-main" data-act="toggle" data-i="${i}" aria-expanded="${V.open === i}"><span class="num">${state === "played" ? "✓" : s.n}</span>

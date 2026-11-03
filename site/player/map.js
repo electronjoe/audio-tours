@@ -170,7 +170,7 @@ function drawMap(full = true) {
   const svg = $("#map");
   if (full) {
     stops().forEach((s, i) => {
-      const st = stateOf(s, i), cls = `${st}${MAP.sel === i ? " sel" : ""}`;
+      const st = shownState(s, i), cls = `${st}${MAP.sel === i ? " sel" : ""}`;
       svg.querySelector(`.m-pin[data-i="${i}"]`).setAttribute("class", `m-pin ${cls}`);
       svg.querySelector(`.m-zone[data-i="${i}"]`).setAttribute("class", `m-zone ${st}`);
     });

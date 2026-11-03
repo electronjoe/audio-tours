@@ -381,18 +381,23 @@ pixel but for clocks and distances.
   (Now card, More → Event log, Next stop card, stop cards, the song card); their open
   instructions (001's next drive, 003's acceptance box) name the new places.
 
+**Next, not armed (after step 8).** Scott found two green rings in All stories before Start
+confusing: with `lookahead = 2` both stop 1 and stop 2 are armed, and both rows had the accent
+ring and "Coming up". Agreed fix, view only: `shownState()` in `view.js` shows the first armed
+stop as **"Next"** (`st-next`, the accent ring) while nothing is queued (a queued story is
+"Next, after this one" then), and other armed stops as "Later", like any later stop. The map
+lights only the next stop's pin and zone. Triggering is unchanged. Tests: one row reads Next
+before Start, the other armed one Later; with a story queued no other row reads Next (`SEL`
+`next`, `next_now` now find `.st-next`). 99 checks, 0 failures.
+
 ## Progress (2026-11-03)
 
 Work is on the branch `player-redesign`, not yet merged. Steps 1–8 are done there (see As
 built), with task 010's `tour map` (Hobart's `map.json`). `uv run pytest` 111 passed;
-`player_drive.py hobart` 97 checks, 0 failures.
+`player_drive.py hobart` 99 checks, 0 failures. All stories now shows one "Next" (As built,
+after step 8).
 
 Open, waiting on Scott:
-- **All stories, "next" vs "armed"** (raised 2026-11-03 from `setup-stories-light-portrait`):
-  with `lookahead = 2`, two stops are armed and both rows got the accent ring and "Coming up",
-  so it looks like two "next" stories. Proposed: only `armed()[0]` gets the ring and the label
-  "Next"; other armed stops look and read as "Later"; the map lights only the next pin and zone
-  the same way. View only; not built until agreed.
 - From the step 6 checkpoint: the map card's first line wraps when long ("Next story · 2 of 8
   · 1.0 km · under a minute"; dropping "N of 8" there would fix it), and the base map's
   colours are a little brighter than the demo's.

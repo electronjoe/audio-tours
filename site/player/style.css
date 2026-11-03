@@ -160,14 +160,14 @@ a { color: var(--accent); }
 .m-route { fill: none; stroke: #34413e; stroke-width: 7px; stroke-linecap: round; stroke-linejoin: round; }
 .m-done { fill: none; stroke: var(--accent); stroke-width: 7px; stroke-linecap: round; stroke-linejoin: round; }
 .m-zone { fill: var(--accent); fill-opacity: 0; stroke: var(--accent); stroke-opacity: 0; stroke-width: 1px; }
-.m-zone.armed { fill-opacity: .1; stroke-opacity: .5; }
+.m-zone.next { fill-opacity: .1; stroke-opacity: .5; }
 .m-zone.playing { fill-opacity: .22; stroke-opacity: .8; animation: m-pulse 1.6s ease-in-out infinite; }
 .m-zone.queued, .m-zone.resume, .m-zone.missed { fill-opacity: .08; stroke-opacity: .4; }
 .m-hit { fill: transparent; }
 .m-pdot { fill: #0d1312; stroke: #5d6d69; stroke-width: 2; }
 .m-n { fill: #c9d4d1; font: 700 12px system-ui, sans-serif; text-anchor: middle; pointer-events: none; }
 .m-pin { cursor: pointer; }
-.m-pin.armed .m-pdot, .m-pin.queued .m-pdot, .m-pin.resume .m-pdot, .m-pin.missed .m-pdot { stroke: var(--accent); }
+.m-pin.next .m-pdot, .m-pin.queued .m-pdot, .m-pin.resume .m-pdot, .m-pin.missed .m-pdot { stroke: var(--accent); }
 .m-pin.playing .m-pdot { fill: var(--accent); stroke: var(--accent); }
 .m-pin.playing .m-n { fill: var(--accent-fg); }
 .m-pin.played .m-pdot { fill: #1b2523; stroke: #1b2523; }
@@ -211,7 +211,7 @@ a { color: var(--accent); }
 .st-played .num { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
 .st-playing { border-color: var(--accent); }
 .st-playing .num { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
-.st-queued .num, .st-missed .num, .st-resume .num, .st-armed .num { border-color: var(--accent); color: var(--accent); }
+.st-queued .num, .st-missed .num, .st-resume .num, .st-next .num { border-color: var(--accent); color: var(--accent); }
 .st-skipped .num, .st-missed .num { border-style: dashed; }
 .st-played b, .st-skipped b { color: var(--muted); font-weight: 600; }
 .row-acts { display: grid; gap: 10px; padding: 0 14px 14px; }

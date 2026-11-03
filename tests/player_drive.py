@@ -78,14 +78,15 @@ SEL: dict[str, str | tuple[str, ...] | None] = {
     "song_play": "#p1 a.song-play",
     "dismiss_missed": "#offer [data-act=dismissMissed]",
     "dismiss_song": "#offer [data-act=dismissSong]",
-    "next": ("sheet", "#stories .row.st-armed"),
-    "next_now": ("sheet", "#stories .row.st-armed .row-main", "#stories .row.st-armed [data-act=queue]"),
+    "next": ("sheet", "#stories .row.st-next"),
+    "next_now": ("sheet", "#stories .row.st-next .row-main", "#stories .row.st-next [data-act=queue]"),
     "status": "#p1 .top",
     "download": "#download",
     "saved": "#check-save.done",  # in the page once every stop's audio is cached
     "nav_links": "#stories a.nav",
     "open_stories": "[data-act=openSheet]:visible",
     "story_row": "#stories .row[data-id={id}]",
+    "story_next": "#stories .row.st-next",  # the one story shown as next
     "open_stop": ("sheet", "#stories .row[data-id={id}] .row-main"),
     "stop_here": "#stories .row[data-id={id}] [data-act=playHere]",
     "stop_song_link": "#stories .row[data-id={id}] a.song-link",
@@ -579,6 +580,8 @@ def drive_checks(browser, url: str, tour: dict, check, failures: list[str]) -> N
     tap(page, "next_now")
     page.wait_for_timeout(200)
     check(state(page)["queue"] == [stops[5]], "the next story's button queues (does not interrupt) while playing")
+    check(page.locator(sel("story_next")).count() == 0 and "Next, after this one" in page.inner_text(sel("story_row", id=stops[5])),
+          "with a story queued, it alone reads as next")
 
     print("Stale progress")
     old = {"cursor": 3, "status": {stops[0]: "played", stops[1]: "played"}, "pending": [stops[2]]}
@@ -702,6 +705,9 @@ def drive_checks(browser, url: str, tour: dict, check, failures: list[str]) -> N
     fresh(page)
     tap(page, "open_stories")
     rows = {s["id"]: page.inner_text(sel("story_row", id=s["id"])) for s in tour["stops"]}
+    nxt = page.eval_on_selector_all(sel("story_next"), "els => els.map(e => e.dataset.id)")
+    check(nxt == [stops[0]] and "Next" in rows[stops[0]] and "Later" in rows[stops[1]],
+          f"before Start one story reads as next, the other armed one as later ({nxt})")
     check(all(("♪" in rows[s["id"]]) == ("song" in s) for s in tour["stops"]), "♪ marks exactly the stories followed by a song")
     check(any("song" in s for s in tour["stops"])
           and all(f"Then a song: {s['song']['title']} · {s['song']['artist']}" in rows[s["id"]] for s in tour["stops"] if "song" in s),
