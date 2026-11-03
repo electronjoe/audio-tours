@@ -234,7 +234,10 @@ function placeLabels(svg, s, x0, y0, pins) {
   if (!groups.length) return;
   if (!MAP.labels) MAP.labels = [...groups].map((g) => { const b = g.querySelector("text").getBBox(); return [b.width, b.height]; });
   const F = MAP.free, taken = pins.map(([x, y]) => [x - 18, y - 18, x + 18, y + 18]);
-  const free = (r) => r[0] >= F.l && r[2] <= F.r && r[1] >= F.t && r[3] <= F.b && !taken.some((t) => r[0] < t[2] && r[2] > t[0] && r[1] < t[3] && r[3] > t[1]);
+  const free = ([l, t, r, b]) => {
+    [l, t, r, b] = [l - 2, t - 3, r + 2, b + 3]; // a little air between names
+    return l >= F.l && r <= F.r && t >= F.t && b <= F.b && !taken.some((k) => l < k[2] && r > k[0] && t < k[3] && b > k[1]);
+  };
   groups.forEach((g, i) => {
     const p = MAP.places[i], [w, h] = MAP.labels[i], sx = (p.at[0] - x0) / s, sy = (p.at[1] - y0) / s;
     const spots = [ // [text x, y, anchor, the label's box relative to the dot]
