@@ -49,7 +49,7 @@ def publish(tour: config.Tour, site_dir: Path = SITE_DIR) -> None:
         stop = {"id": sid, "n": n, "title": t.title, "lat": s["lat"], "lon": s["lon"],
                 "radius": s.get("radius", 400), "place": s.get("place", ""),
                 "strict": s.get("strict", False)}
-        stop |= nav_field(sid, s)
+        stop |= nav_field(sid, s) | text_fields(sid, s)
         if "song" in s:
             stop["song"] = songs.to_json(sid, s["song"])  # tasks/006
         mp3 = tour.build / f"{sid}.mp3"
@@ -105,6 +105,23 @@ def nav_field(sid: str, s: dict) -> dict:
     if s["nav"] is False:
         return {"nav": False}
     return {"nav": _point(s["nav"], f"[stops.{sid}] nav")}
+
+
+LABEL_MAX, TEASER_MAX = 20, 90  # characters: a pin label beside a pin; one line on its card
+
+
+def text_fields(sid: str, s: dict) -> dict:
+    """A stop's optional ``label`` (the map pin's) and ``teaser`` (the pin card's line), task
+    009: plain one-line strings, checked here so a long label fails at publish, not on a pin."""
+    out = {}
+    for key, most in (("label", LABEL_MAX), ("teaser", TEASER_MAX)):
+        if key not in s:
+            continue
+        v = s[key]
+        if not isinstance(v, str) or not v.strip() or "\n" in v or len(v.strip()) > most:
+            raise SystemExit(f"[stops.{sid}] {key} = {v!r}; expected one line of 1 to {most} characters")
+        out[key] = v.strip()
+    return out
 
 
 def route_end(tour: config.Tour) -> dict:

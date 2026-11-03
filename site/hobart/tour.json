@@ -14,6 +14,7 @@
    "radius": 900,
    "place": "Approaching Granton and the Bridgewater Bridge junction",
    "strict": false,
+   "label": "Granton",
    "audio": "audio/stop-1-105ddfb9.mp3",
    "bytes": 2686028,
    "duration": 167.8
@@ -27,6 +28,7 @@
    "radius": 900,
    "place": "Entering New Norfolk from Hobart",
    "strict": false,
+   "label": "New Norfolk",
    "audio": "audio/stop-2-3e0fe6af.mp3",
    "bytes": 2832748,
    "duration": 177.0
@@ -40,6 +42,7 @@
    "radius": 1000,
    "place": "Approaching Bushy Park and the hop fields",
    "strict": false,
+   "label": "Bushy Park",
    "audio": "audio/stop-3-b4c56261.mp3",
    "bytes": 2897940,
    "duration": 181.1
@@ -53,6 +56,7 @@
    "radius": 800,
    "place": "Leaving Westerway towards National Park",
    "strict": false,
+   "label": "Westerway",
    "audio": "audio/stop-4-e870aa53.mp3",
    "bytes": 2900867,
    "duration": 181.3
@@ -66,6 +70,7 @@
    "radius": 300,
    "place": "Parked at Mount Field Visitor Centre",
    "strict": false,
+   "label": "Mount Field",
    "audio": "audio/stop-5-117b3c68.mp3",
    "bytes": 2913394,
    "duration": 182.0
@@ -79,6 +84,7 @@
    "radius": 600,
    "place": "Leaving Mount Field along the Tyenna River",
    "strict": true,
+   "label": "Tyenna River",
    "audio": "audio/stop-6-2872bd42.mp3",
    "bytes": 2889998,
    "duration": 180.6
@@ -92,6 +98,7 @@
    "radius": 1000,
    "place": "Past Bushy Park, 5-10 minutes before Plenty and the Salmon Ponds",
    "strict": false,
+   "label": "Bushy Park",
    "audio": "audio/stop-7-a7df50c9.mp3",
    "bytes": 2971914,
    "duration": 185.7
@@ -105,6 +112,7 @@
    "radius": 900,
    "place": "Leaving New Norfolk towards Hobart (Boyer Mill is across the river)",
    "strict": false,
+   "label": "Boyer Mill",
    "song": {
     "title": "Mt Wellington Reverie",
     "artist": "Augie March",

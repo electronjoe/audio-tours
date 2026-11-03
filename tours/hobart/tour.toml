@@ -93,42 +93,49 @@ points = [[-42.68181, 146.71655], [-42.75321, 146.97], [-42.88199, 147.33654]]  
 # before each landmark (route.json). Only the next stop in sequence, or the one after it,
 # can trigger; that is what keeps stop 7 (same spot as stop 3) and stop 8 (near stop 2)
 # silent on the way out. A `strict` stop also waits until the stop before it is handled. Radii follow research.txt's 0.5-1 km suggestion; untested on the road.
+# `label` is the map pin's name (task 009); stops 3 and 7 share a point and a label, shown once.
 
 [stops.stop-1]
 lat = -42.77156
 lon = 147.23826
 radius = 900
 place = "Approaching Granton and the Bridgewater Bridge junction"
+label = "Granton"
 
 [stops.stop-2]
 lat = -42.78309
 lon = 147.07977
 radius = 900
 place = "Entering New Norfolk from Hobart"
+label = "New Norfolk"
 
 [stops.stop-3]
 lat = -42.73207
 lon = 146.90506
 radius = 1000
 place = "Approaching Bushy Park and the hop fields"
+label = "Bushy Park"
 
 [stops.stop-4]
 lat = -42.68044
 lon = 146.78524
 radius = 800
 place = "Leaving Westerway towards National Park"
+label = "Westerway"
 
 [stops.stop-5]
 lat = -42.68184
 lon = 146.71635
 radius = 300
 place = "Parked at Mount Field Visitor Centre"
+label = "Mount Field"
 
 [stops.stop-6]
 lat = -42.68120
 lon = 146.72986
 radius = 600
 place = "Leaving Mount Field along the Tyenna River"
+label = "Tyenna River"
 strict = true            # its zone is on the road in, so it must wait for stop-5 (caught by tests/player_drive.py)
 
 [stops.stop-7]
@@ -136,12 +143,14 @@ lat = -42.73207
 lon = 146.90506
 radius = 1000
 place = "Past Bushy Park, 5-10 minutes before Plenty and the Salmon Ponds"
+label = "Bushy Park"
 
 [stops.stop-8]
 lat = -42.78407
 lon = 147.09072
 radius = 900
 place = "Leaving New Norfolk towards Hobart (Boyer Mill is across the river)"
+label = "Boyer Mill"
 
 # Song for the drive home (task 006). Source for `why`: Glenn Richards, Rolling Stone Australia,
 # 9 Mar 2026 (au.rollingstone.com/music/music-features/augie-march-interview-moo-you-bloody-choir-anniversary-tour-92098):

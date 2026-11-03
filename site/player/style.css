@@ -174,6 +174,8 @@ a { color: var(--accent); }
 .m-pin.played .m-n { fill: #63736f; }
 .m-pin.skipped .m-pdot, .m-pin.missed .m-pdot { stroke-dasharray: 3 3; }
 .m-pin.sel .m-pdot { stroke: #ffffff; stroke-width: 3; }
+.m-lbl { fill: #a3b1ad; font: 600 13px system-ui, sans-serif; paint-order: stroke; stroke: #0d1312; stroke-width: 4px; stroke-linejoin: round; }
+.m-pin.played .m-lbl, .m-pin.skipped .m-lbl { fill: #63736f; }
 @keyframes m-pulse { 50% { fill-opacity: .06; } }
 .m-song circle { fill: var(--accent); stroke: #0d1312; stroke-width: 2; }
 .m-song text { fill: var(--accent-fg); font: 700 11px system-ui, sans-serif; text-anchor: middle; pointer-events: none; }

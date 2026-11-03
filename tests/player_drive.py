@@ -32,6 +32,8 @@ points. Checks:
   or arriving brings page one back, a story ending or a song offer doesn't
 - the base map (map.json) draws under the route with the OpenStreetMap attribution, and
   its place names show beside the pins (New Norfolk, near stop 2)
+- pin labels (`label`): on exactly the stops that have one, never covering another label or
+  a pin; the pin card shows a stop's `teaser` (escaped), else its `place`
 - after Download, the tour opens and plays with the network off, map page and base map too
 
 The final screenshot goes to tours/<tour>/build/player-test.png, or to $PLAYER_TEST_SHOT.
@@ -100,7 +102,8 @@ SEL: dict[str, str | tuple[str, ...] | None] = {
     "pin_play": "#pin-play",
     "pager": "#pager",
     "map_base": "#p2 .m-base path",
-    "map_places": "#p2 .m-place",
+    "map_places": "#p2 .m-place, #p2 .m-lbl",  # names on the map: place names and pin labels
+    "map_labels": "#p2 .m-lbl",
     "map_attr": "#map-attr",
 }
 
@@ -710,6 +713,9 @@ def drive_checks(browser, url: str, tour: dict, check, failures: list[str]) -> N
     print("Map page")
     map_check(page, ctx, tour, check)
 
+    print("Pin labels and teasers")
+    label_check(page, ctx, tour, check)
+
     print("Offline")
 
     fresh(page)
@@ -742,6 +748,58 @@ def drive_checks(browser, url: str, tour: dict, check, failures: list[str]) -> N
 # A scene that needs something this UI doesn't have (SEL None) is skipped.
 
 VIEWS = {"portrait": {"width": 412, "height": 860}, "landscape": {"width": 860, "height": 390}}
+def label_check(page, ctx, tour: dict, check) -> None:
+    """Task 009 step 7: pins show their `label`, labels never cover each other or a pin, and the
+    pin card shows the `teaser`, else `place`."""
+    ids = [s["id"] for s in tour["stops"]]
+    labelled = {s["id"]: s["label"] for s in tour["stops"] if "label" in s}
+    begin(page, ctx, tour, heard=1)
+    at(page, ctx, before(tour, 1, 4000))
+    tap(page, "open_map")
+    on_page(page)
+    got = page.eval_on_selector_all(sel("map_labels"), "els => els.map(e => [e.closest('.m-pin').dataset.id, e.textContent])")
+    check(dict(got) == labelled and len(got) == len(labelled), f"a label on exactly the pins whose stop has one ({len(got)})")
+    if labelled.get(ids[1]):
+        check(page.locator(f"{sel('map_pins')}[data-id={ids[1]}] .m-lbl").get_attribute("display") == "inline",
+              "following: the next story's pin shows its label")
+    tap(page, "map_whole")
+    page.wait_for_timeout(1500)
+    shown = page.evaluate("""(s) => {
+        const box = (e) => { const r = e.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; };
+        const view = box(document.querySelector("#p2"));
+        const labels = [...document.querySelectorAll(s)].filter((e) => e.getAttribute("display") === "inline")
+          .map((e) => ({ id: e.closest(".m-pin").dataset.id, name: e.textContent, box: box(e) }));
+        const dots = [...document.querySelectorAll("#p2 .m-pin")].map((e) => ({ id: e.dataset.id, box: box(e.querySelector(".m-pdot")) }));
+        return { view, labels, dots }; }""", sel("map_labels"))
+    hit = lambda a, b: a[0] < b[2] - 1 and a[2] > b[0] + 1 and a[1] < b[3] - 1 and a[3] > b[1] + 1
+    L, v = shown["labels"], shown["view"]
+    check(all(not hit(a["box"], b["box"]) for k, a in enumerate(L) for b in L[k + 1:])
+          and all(not hit(a["box"], d["box"]) for a in L for d in shown["dots"] if d["id"] != a["id"])
+          and all(a["box"][0] >= v[0] and a["box"][2] <= v[2] for a in L),
+          f"Whole route: labels cover no other label or pin and stay on screen ({[a['name'] for a in L]})")
+    if TOUR == "hobart":
+        names = [a["name"] for a in L]
+        check(names.count("Bushy Park") == 1 and len(L) >= 4, f"stops 3 and 7 (one point, one name) show it once ({names})")
+    try:
+        fixture = json.loads(json.dumps(tour))
+        fixture["stops"][2]["teaser"] = "Hops & <b>beer</b>, by the acre."
+        fixture["stops"][3].pop("teaser", None)
+        OVERRIDE[f"/{TOUR}/tour.json"] = json.dumps(fixture).encode()
+        begin(page, ctx, tour)
+        tap(page, "open_map")
+        on_page(page)
+        tap(page, "map_pin", id=ids[2])
+        card = page.inner_text(sel("map_card"))
+        check("Hops & <b>beer</b>, by the acre." in card and fixture["stops"][2]["place"] not in card,
+              f"the pin card shows the teaser, as text, in place of the place ({card[:90]!r})")
+        page.click(f"{sel('map_pins')}[data-id={ids[3]}]")  # still on the whole route
+        page.wait_for_timeout(300)
+        card = page.inner_text(sel("map_card"))
+        check(fixture["stops"][3]["place"] in card, "and the place when the stop has no teaser")
+    finally:
+        OVERRIDE.clear()
+
+
 TEST_SONG = {"title": "Test Song", "artist": "Test Artist", "spotify": "https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC",
              "length": 214, "why": "A fixture song for the player test."}
 

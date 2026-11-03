@@ -45,6 +45,8 @@ constant must match, and `tests/test_publish.py` checks that they do.
 | `radius` | number | `radius` (default 400) | Trigger radius in metres. |
 | `place` | string | `place` (default `""`) | Where the stop triggers, in words. |
 | `strict` | boolean | `strict` (default false) | The stop can't trigger until the stop before it has played or been skipped. |
+| `label` | string, optional | `label` | The map pin's name (task 009), e.g. `"Granton"`: one line, at most 20 characters. Missing: the pin shows only its number. |
+| `teaser` | string, optional | `teaser` | One line for the map's pin card, in place of `place`: what the story is about, without giving it away. At most 90 characters. Missing: the card shows `place`. |
 | `nav` | `[lat, lon]` or `false`, optional | `nav` | For the Navigate from here links (task 003): where to drive to for this stop, if not its trigger point; `false` leaves the stop out of the links (a drive-by stop). Missing: the trigger point. |
 | `audio` | string, optional | `build/<id>.mp3` | Path relative to the tour folder, e.g. `audio/stop-1-105ddfb9.mp3`. The 8 hex digits are a content hash, so a re-master gets a new URL. Missing if the stop isn't mastered yet. |
 | `bytes` | integer, optional | | Size of the audio file. |
@@ -65,7 +67,8 @@ The player escapes the song fields, so they may contain `&` or `<`. Publish refu
 with a missing field, a link that isn't a track, or a length it can't read.
 
 The player inserts `title` and `place` into the page as HTML. Keep them plain text, without `<`
-or `&`.
+or `&`. It escapes `label` and `teaser`. Publish refuses a `label` or `teaser` that is empty,
+not a string, more than one line or over its length.
 
 ## Navigate from here
 

@@ -1,7 +1,8 @@
 // The map page (page two, task 009 design A.3): the route, the part already driven, numbered pins
 // with their trigger zones, ♪ on stops followed by a song, and the car, drawn as SVG in metres
 // around the tour's centre (equirectangular, the projection map.json uses: docs/tour-json.md).
-// Pins, the car and line widths keep their size on screen at any zoom. The camera follows the car
+// Pins (with their `label`, when a stop has one), the car and line widths keep their size on
+// screen at any zoom. The camera follows the car
 // and the story it's heading for (or playing), or shows the whole route.
 //
 // Under the route goes the tour's base map, map.json from `tour map` (task 010), when it has one:
@@ -24,6 +25,7 @@ const MAP = {
 };
 const FOLLOW_MIN = 4000; // metres: the narrowest view across the free part of the screen when following
 const PIN_GAP = 30; // px: pins nearer than this on screen are spread sideways
+const LBL_X = 19; // px: a pin label's gap from its pin's centre
 const EDGE_FADE = 3000; // metres: the base map fades out this far inside its edge
 const M_PER_DEG = 111320;
 
@@ -78,7 +80,7 @@ function buildMap() {
   const d = pathD(route);
   const zones = stops().map((s, i) => `<circle class="m-zone" data-i="${i}" cx="${MAP.pins[i][0].toFixed(0)}" cy="${MAP.pins[i][1].toFixed(0)}" r="${s.radius}"/>`).join("");
   const pins = stops().map((s, i) => `<g class="m-pin" data-act="pin" data-i="${i}" data-id="${s.id}" role="button" aria-label="Story ${s.n}: ${esc(s.title)}">
-      <circle class="m-hit" r="24"/><circle class="m-pdot" r="13"/><text class="m-n" dy=".35em">${s.n}</text>${s.song ? `<g class="m-song" transform="translate(12 -12)"><circle r="8.5"/><text dy=".35em">♪</text></g>` : ""}</g>`).join("");
+      <circle class="m-hit" r="24"/><circle class="m-pdot" r="13"/><text class="m-n" dy=".35em">${s.n}</text>${s.song ? `<g class="m-song" transform="translate(12 -12)"><circle r="8.5"/><text dy=".35em">♪</text></g>` : ""}${s.label ? `<text class="m-lbl" x="${LBL_X}" dy=".35em">${esc(s.label)}</text>` : ""}</g>`).join("");
   const places = (b?.places || []).map((p) => `<g class="m-place r${p.rank}"><circle r="2.5"/><text x="7" dy=".35em">${esc(p.name)}</text></g>`).join("");
   $("#p2map").innerHTML = `<svg class="m" id="map" role="img" aria-label="Map of the route and its stories" preserveAspectRatio="xMidYMid meet">
     <g class="m-base">${b ? baseSVG(b) : ""}</g><g class="m-zones">${zones}</g>
@@ -88,7 +90,8 @@ function buildMap() {
   </svg>`;
   MAP.whole = bounds([...route, ...MAP.pins.map(([x, y], i) => [x, y, stops()[i].radius])]);
   MAP.places = b?.places || [];
-  MAP.labels = null; // label sizes in px, measured on the first frame
+  MAP.labels = null; // place names' sizes in px, measured on the first frame
+  MAP.pinLabels = null; // pin labels' widths in px, likewise
   MAP.built = true;
   $("#map-attr").hidden = !b;
 }
@@ -219,27 +222,62 @@ function placeMap() {
     placed.push([sx + dx, sy]);
     g.setAttribute("transform", `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(4)}) translate(${dx} 0)`);
   });
-  placeLabels(svg, s, x0, y0, placed);
+  const lbl = placePinLabels(svg, placed, w, h);
+  placeLabels(svg, s, x0, y0, placed, lbl);
   const car = svg.querySelector(".m-car"), c = MAP.car;
   car.setAttribute("display", c ? "inline" : "none");
   if (c) car.setAttribute("transform", `translate(${c.x.toFixed(1)} ${c.y.toFixed(1)}) scale(${s.toFixed(4)})${c.ang == null ? "" : ` rotate(${c.ang.toFixed(0)})`}`);
   svg.querySelector(".m-arrow").setAttribute("display", c && c.ang != null ? "inline" : "none");
 }
 
+const pinBox = ([x, y]) => [x - 18, y - 18, x + 18, y + 18];
+const overlaps = (a, k) => a[0] < k[2] && a[2] > k[0] && a[1] < k[3] && a[3] > k[1];
+
+/** Pins' labels (`label` in tour.json), right of the pin, else left: the pin tapped first, then
+ *  the story playing or next, then the rest in order. One that would cover a pin or an earlier
+ *  label, or leave the screen, is left out, and so is one repeating a label shown on a pin
+ *  within 60 px (Hobart's stops 3 and 7 share a point and a name). `pins` are the pins' screen
+ *  positions. Returns the labels shown: {name, box}. */
+function placePinLabels(svg, pins, w, h) {
+  const texts = stops().map((s, i) => svg.querySelector(`.m-pin[data-i="${i}"] .m-lbl`));
+  if (!MAP.pinLabels) MAP.pinLabels = texts.map((t) => (t ? t.getBBox().width : 0));
+  const focus = S.current ? stops().indexOf(S.current) : armed()[0];
+  const order = [...new Set([MAP.sel, focus, ...stops().keys()])].filter((i) => i != null && i >= 0 && texts[i]);
+  const taken = pins.map(pinBox), shown = [];
+  for (const i of order) {
+    const t = texts[i], [x, y] = pins[i], lw = MAP.pinLabels[i], name = stops()[i].label;
+    const spots = [[LBL_X, "start", [x + LBL_X - 2, y - 10, x + LBL_X + lw + 2, y + 10]],
+      [-LBL_X, "end", [x - LBL_X - lw - 2, y - 10, x - LBL_X + 2, y + 10]]];
+    const twin = shown.some((o) => o.name === name && Math.hypot(o.at[0] - x, o.at[1] - y) < 60);
+    const spot = twin ? null : spots.find(([, , b]) => b[0] >= 0 && b[2] <= w && b[1] >= 0 && b[3] <= h
+      && !taken.some((k, j) => j !== i && overlaps(b, k)));
+    t.setAttribute("display", spot ? "inline" : "none");
+    if (!spot) continue;
+    t.setAttribute("x", spot[0]);
+    t.setAttribute("text-anchor", spot[1]);
+    taken.push(spot[2]);
+    shown.push({ name, at: [x, y], box: spot[2] });
+  }
+  return shown;
+}
+
 /** Place names at a fixed size on screen, biggest places first, each to the right of its dot,
- *  else left, above or below; one that would cover a pin or another name, or not fit in the free
- *  part of the screen, is left out. `pins` are the pins' screen positions. */
-function placeLabels(svg, s, x0, y0, pins) {
+ *  else left, above or below; one that would cover a pin, a pin's label or another name, or not
+ *  fit in the free part of the screen, is left out, and so is one a pin's label already names.
+ *  `pins` are the pins' screen positions, `lbl` the pin labels shown (placePinLabels). */
+function placeLabels(svg, s, x0, y0, pins, lbl = []) {
   const groups = svg.querySelectorAll(".m-place");
   if (!groups.length) return;
   if (!MAP.labels) MAP.labels = [...groups].map((g) => { const b = g.querySelector("text").getBBox(); return [b.width, b.height]; });
-  const F = MAP.free, taken = pins.map(([x, y]) => [x - 18, y - 18, x + 18, y + 18]);
+  const F = MAP.free, taken = [...pins.map(pinBox), ...lbl.map((o) => o.box)];
+  const named = new Set(lbl.map((o) => o.name.toLowerCase()));
   const free = ([l, t, r, b]) => {
     [l, t, r, b] = [l - 2, t - 3, r + 2, b + 3]; // a little air between names
-    return l >= F.l && r <= F.r && t >= F.t && b <= F.b && !taken.some((k) => l < k[2] && r > k[0] && t < k[3] && b > k[1]);
+    return l >= F.l && r <= F.r && t >= F.t && b <= F.b && !taken.some((k) => overlaps([l, t, r, b], k));
   };
   groups.forEach((g, i) => {
     const p = MAP.places[i], [w, h] = MAP.labels[i], sx = (p.at[0] - x0) / s, sy = (p.at[1] - y0) / s;
+    if (named.has(p.name.toLowerCase())) return g.setAttribute("display", "none");
     const spots = [ // [text x, y, anchor, the label's box relative to the dot]
       [7, 0, "start", [3, -h / 2, w + 11, h / 2]], [-7, 0, "end", [-w - 11, -h / 2, -3, h / 2]],
       [0, -h * 0.75, "middle", [-w / 2 - 4, -h * 1.3, w / 2 + 4, -3]], [0, h * 0.85, "middle", [-w / 2 - 4, 3, w / 2 + 4, h * 1.4]]];

@@ -253,7 +253,7 @@ function mapCardHTML() {
   if (i != null) {
     const s = stops()[i], st = stateOf(s, i), nav = navLink(S.tour, i);
     return `<div class="offer pin-card" id="pin-card" data-id="${s.id}"><p class="label">Story ${s.n} · ${LABEL[st]}</p>
-      <p class="o-title">${s.title}</p><p class="o-why">${[s.place, s.duration ? mmss(s.duration) : "no audio yet"].filter(Boolean).join(" · ")}</p>
+      <p class="o-title">${s.title}</p><p class="o-why">${[s.teaser ? esc(s.teaser) : s.place, s.duration ? mmss(s.duration) : "no audio yet"].filter(Boolean).join(" · ")}</p>
       ${songLine(s)}<div class="o-row"><button class="o-yes" id="pin-play" data-act="mapPlay" data-i="${i}">${st === "playing" ? "Restart" : "Play now"}</button>
       ${nav ? `<a class="o-no nav" href="${nav.url}" target="_blank" rel="noopener">${nav.label}</a>` : ""}</div></div>`;
   }

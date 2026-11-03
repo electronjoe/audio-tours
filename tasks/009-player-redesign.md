@@ -1,6 +1,6 @@
 # 009: Player redesign: the glance screen and a map page (A.3)
 
-Status: doing (on branch `player-redesign`, steps 1–6 of 9 done) · Priority: high · Raised: 2026-11-03 (player redesign demos)
+Status: doing (on branch `player-redesign`, steps 1–7 of 9 done) · Priority: high · Raised: 2026-11-03 (player redesign demos)
 
 ## Why
 
@@ -347,6 +347,27 @@ pixel but for clocks and distances.
   the base map is drawn.
 - Tests: base map drawn with the attribution and its link, New Norfolk's label shown when
   following there, and offline after Save the map page still draws it. 91 checks, 0 failures.
+
+**Step 7.** `label` and `teaser`, optional stop fields.
+- Publish copies them from `tour.toml` (`text_fields` in `publish.py`) and refuses one that is
+  empty, not a string, more than one line, or longer than 20 (label) or 90 (teaser) characters.
+  `docs/tour-json.md` and `docs/process/2-stops.md` describe them. The player escapes both.
+- Pins show the label at the demo's size (`.m-lbl`, muted once heard or skipped), right of the
+  pin, else left (`placePinLabels` in `map.js`): the tapped pin first, then the story playing or
+  next, then the rest in order. A label that would cover a pin or an earlier label, or leave the
+  screen, is left out, and so is one repeating a label shown within 60 px. Pin labels are placed
+  before place names, which avoid them, and a place name a pin label already shows is left out
+  (New Norfolk).
+- The pin card shows the teaser in place of `place`, then the length.
+- Hobart's labels (free): Granton, New Norfolk, Bushy Park, Westerway, Mount Field, Tyenna
+  River, Bushy Park (stop 7 shares stop 3's point; it shows once), Boyer Mill (stop 8, the
+  mill across the river from it). No teasers: they are proven on the next tour.
+- Tests: `test_publish.py` (copied, trimmed, refused); player_drive.py, "Pin labels and
+  teasers" (6 checks): a label on exactly the labelled pins, the next story's label shows when
+  following, on the whole route no label covers another or a pin and none leaves the screen,
+  Bushy Park shows once, the pin card shows a fixture's teaser escaped in place of the place,
+  and the place without one. The check that New Norfolk's name shows when following now finds
+  it as pin 2's label (`SEL["map_places"]` takes both). 97 checks, 0 failures; pytest 111.
 
 ## Progress (2026-11-03)
 

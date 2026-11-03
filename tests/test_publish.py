@@ -143,3 +143,18 @@ def test_player_reads_the_published_schema():
     app = (SITE / "player" / "app.js").read_text()
     assert re.search(r"^const SCHEMA = (\d+);", app, re.MULTILINE).group(1) == str(publish.SCHEMA)
     assert "schema !== SCHEMA" in app
+
+
+def test_label_and_teaser_are_copied_and_checked(tmp_path):
+    tour = make_tour(tmp_path / "tours")
+    toml = (tour.root / "tour.toml").read_text()
+    toml = toml.replace("lon = 147.33\n", 'lon = 147.33\nlabel = " The Corner "\nteaser = "Why the corner is round."\n')
+    (tour.root / "tour.toml").write_text(toml)
+    publish.publish(tour, tmp_path / "site")
+    stops = json.loads((tmp_path / "site" / "demo" / "tour.json").read_text())["stops"]
+    assert (stops[0]["label"], stops[0]["teaser"]) == ("The Corner", "Why the corner is round.")
+    assert "label" not in stops[1] and "teaser" not in stops[1]
+    for bad in ('label = "A label far too long for a pin"', "label = 3", 'teaser = ""'):
+        (tour.root / "tour.toml").write_text(toml.replace('lon = 147.34\n', f"lon = 147.34\n{bad}\n"))
+        with pytest.raises(SystemExit, match=r"\[stops.stop-2\]"):
+            publish.publish(tour, tmp_path / "site")

@@ -40,6 +40,8 @@ lat = -42.73207
 lon = 146.90506
 radius = 1000
 place = "Approaching Bushy Park and the hop fields"   # shown on screen
+label = "Bushy Park"     # the map pin's name, up to 20 characters
+# teaser = "..."         # the map pin card's line, up to 90 characters (below)
 # strict = true          # waits for the stop before it
 # nav = [lat, lon]       # where Maps should take you, if not the trigger (task 003)
 # nav = false            # or: a drive-by stop that isn't a Maps waypoint
@@ -49,6 +51,11 @@ Each stop card's **Navigate from here** link routes through this stop and every 
 `[route] end` (1-route.md). Give a stop `nav` when the place you would actually drive to,
 such as a car park, isn't its trigger point. Trigger points sit on the route already, so
 Maps passes a drive-by stop's point anyway; `nav = false` only spares the arrival prompt.
+
+A `label` names the pin on the map page: the town or landmark, short enough to sit beside a
+pin. Stops at the same point can share one; it shows once. Add the `teaser` once the script
+exists (5-scripts.md): one line on what the story is about, for the passenger who taps the pin,
+that doesn't give its ending away. Without one, the card shows `place`.
 
 Then run `uv run tour plan-check <slug>` (offline). It finds each trigger on `route.json` in
 sequence and checks that it is within 100 m of the route, that the road time to the next
