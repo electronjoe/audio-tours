@@ -1,6 +1,6 @@
 # 010: A base map for each tour, drawn from OpenStreetMap at publish time
 
-Status: todo · Priority: medium · Raised: 2026-11-03 (player redesign demos)
+Status: doing (on branch `player-redesign`: `tour map` built and run for Hobart; the player side is task 009 steps 5–6) · Priority: medium · Raised: 2026-11-03 (player redesign demos)
 
 ## Why
 
@@ -79,14 +79,14 @@ ODbL too: the `license` field says so, and a line in `README.md` notes that
 
 ## Acceptance
 
-- [ ] `uv run tour map hobart` writes `site/hobart/map.json` under 300 KB; a second run is
+- [x] `uv run tour map hobart` writes `site/hobart/map.json` under 300 KB; a second run is
       served from the cache and writes the same file.
-- [ ] Unit tests on a recorded Overpass fixture in `tests/fixtures/`: ring assembly, a
+- [x] Unit tests on a recorded Overpass fixture in `tests/fixtures/`: ring assembly, a
       coastline closed along the area's edge, simplification keeps every ring closed, the
       output's shape.
-- [ ] A fetch that fails twice (a fake fetcher in the test) stops with the message, retries
+- [x] A fetch that fails twice (a fake fetcher in the test) stops with the message, retries
       exactly once, and leaves an existing `map.json` untouched.
-- [ ] Publish adds `map` to `tour.json` only when the file exists; `docs/tour-json.md` updated.
+- [x] Publish adds `map` to `tour.json` only when the file exists; `docs/tour-json.md` updated.
 - [ ] The Hobart map page shows the Derwent, Mount Field National Park, the Lyell Highway and
       New Norfolk, with the attribution, online and offline.
 
@@ -106,3 +106,36 @@ ODbL too: the `license` field says so, and a line in `README.md` notes that
   50 × 25 km box shouldn't, so the split code would go untested until then.
 - **Never write a partial `map.json`**, and **name the project in the `User-Agent`** (both
   above, under Change).
+
+## As built (2026-11-03)
+
+`src/audiotour/basemap.py`, `uv run tour map <slug> [--refresh]`; tests in
+`tests/test_basemap.py` (15) on `tests/fixtures/overpass/hobart-waterfront.json.gz`, the Hobart
+answer trimmed to the waterfront and the Derwent, and on small hand-built areas.
+
+- **Hobart's run:** an area of 66 × 38 km (bigger than the 50 × 25 km guessed: the margin is 15 %
+  of the 61 km route box), one query, 4540 elements, answered in about 50 s and cached
+  (1.9 MB gzipped, `tours/hobart/cache/overpass/`). `site/hobart/map.json` is **96 KB**: 1 land
+  polygon, 14 water, 179 green, 110 road chains, 13 rivers, 12 places. A cached rerun writes
+  the same bytes.
+- **Where the coastline runs:** OSM's `natural=coastline` comes up the Derwent from the south
+  edge of the area, past Hobart and Glenorchy, to its head at Granton and the Bridgewater
+  bridge, right where stop 1's zone is, and back down the eastern shore. Above Bridgewater the
+  river is `natural=water` polygons, which fill anyway. So the unfilled water was beside the
+  route for its first 20 km (Hobart to stop 1), not tucked in a corner: **the sea fill is
+  built** (Decisions, first point). Stops 2 and 8 at New Norfolk sit by the river polygons.
+- **Sea fill:** coastline ways joined without reversing (land is on the left), clipped to the
+  area, and closed along its edge, walking anticlockwise from each chain's end to the next
+  chain's start; closed rings (islands) are clipped as polygons. map.json then has `land`, and
+  the rest of the area is sea. If a clipped chain ends inside the area (data missing), it falls
+  back to `coast` lines with a note. Tested on a straight coast both ways round, an estuary in
+  two ways with an island, a coast that stops short, and the recorded waterfront (the Derwent
+  between Hobart and Bellerive is sea, both shores land).
+- **Format:** as planned, plus `extent` (the area in metres), `land` or `coast`, and rings that
+  close implicitly, outer rings clockwise on screen and holes anticlockwise, so the player
+  draws each class as one nonzero-filled path (`docs/tour-json.md`, "map.json").
+- `tour map` also adds `"map": "map.json"` to an already published `tour.json` (Hobart's was);
+  publish adds it whenever the file exists.
+- `README.md` notes the ODbL for `site/*/map.json`; `docs/process/1-route.md` has the step.
+- Left for task 009: drawing it (step 6), the attribution, offline, and the last acceptance box.
+

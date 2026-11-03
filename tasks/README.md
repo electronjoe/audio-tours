@@ -21,7 +21,7 @@ acceptance boxes (songs, segments, more voices) are proven on the next tour.
 | 007 | [Walking tours (trails and city walks)](007-walking-tours.md) | todo | Hobart road test |
 | 008 | [Route and stop tools: `tour route`, `tour plan-check`](008-route-and-stop-tools.md) | done | Process docs (004) |
 | 009 | [Player redesign: the glance screen and a map page (A.3)](009-player-redesign.md) | doing (branch `player-redesign`: steps 1–4 done) | Player redesign demos |
-| 010 | [A base map for each tour, drawn from OpenStreetMap at publish time](010-tour-base-map.md) | todo | Player redesign demos |
+| 010 | [A base map for each tour, drawn from OpenStreetMap at publish time](010-tour-base-map.md) | doing (branch `player-redesign`: `tour map` built, Hobart's map.json committed; drawn in 009 step 6) | Player redesign demos |
 
 ## Template
 

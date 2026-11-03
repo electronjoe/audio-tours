@@ -30,8 +30,9 @@ constant must match, and `tests/test_publish.py` checks that they do.
 | `mode` | `"drive"` or `"walk"` | `[player].mode` (default `"drive"`) | Shown in the tour list. The player doesn't use it yet; walking-tour behaviour is task 007. |
 | `lookahead` | integer | `[player].lookahead` (default 2) | How many unplayed stops, counting from the next one in sequence, GPS may trigger. |
 | `stops` | array | `[stops.*]`, in file order | See below. |
-| `route` | object | `tours/<slug>/route.json` (or `{}`) | `outbound` and `return`: arrays of `[lat, lon]` points. Used for the route sketch and the simulated drive. A route made by `tour route` also has `seconds`: for each leg, OSRM's driving seconds from the leg's start at each point. The player ignores it. |
+| `route` | object | `tours/<slug>/route.json` (or `{}`) | `outbound` and `return`: arrays of `[lat, lon]` points. Used for the route sketch and the simulated drive. A route made by `tour route` also has `seconds`: for each leg, OSRM's driving seconds from the leg's start at each point. The player times the road to the next story with it (task 009); without it, with the car's speed. |
 | `route.end` | `[lat, lon]`, optional | `[route] end` | Where every Navigate from here link finishes (task 003). Missing: the links finish at the last stop's point. |
+| `map` | string, optional | `site/<slug>/map.json` exists | The base map (task 010), relative to the tour folder: always `"map.json"`. Publish adds it when the file is there; so does `tour map` when `tour.json` is already published. Missing: the map page draws the route without a base map. |
 
 ## Stops
 
@@ -79,6 +80,36 @@ waypoints and a destination) and the link reads "Navigate (next 10 stops)". `tra
 If a stop's `build/<id>.mp3` is missing (for example in a fresh clone), publish keeps the stop's
 existing `audio`, `bytes` and `duration`, as long as that file is still in `site/<slug>/audio/`.
 It never deletes committed audio just because there is no local build.
+
+## map.json
+
+`uv run tour map <slug>` writes `site/<slug>/map.json` from OpenStreetMap (task 010); never
+edit it by hand. The data is © OpenStreetMap contributors under the ODbL 1.0, and the player
+shows the attribution wherever it draws the map.
+
+Coordinates are whole metres from `origin`, x east and y south (as on screen), projected as the
+player projects the route: `x = (lon - lon0) × 111320 × cos(lat0)`, `y = -(lat - lat0) × 111320`.
+A line or ring is a flat array `[x0, y0, x1, y1, ...]`. A ring closes implicitly (its last point
+joins its first); outer rings run clockwise on screen and holes anticlockwise, so each class
+draws as one path with `fill-rule: nonzero`.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `version` | integer | `1`. |
+| `origin` | `[lat, lon]` | The centre of the area: the projection's origin. |
+| `bbox` | `[south, west, north, east]` | The area in degrees: the route and stops' box plus 5 km, or 15 % of its larger side. |
+| `extent` | `[x0, y0, x1, y1]` | The same area in metres. |
+| `attribution` | string | `"© OpenStreetMap contributors"`, shown on the map. |
+| `license` | string | `"ODbL-1.0"`. |
+| `land` | rings, optional | When the coastline crosses the area: the land, and the rest of the area is sea. Missing: all of the area is land. |
+| `coast` | lines, optional | The coastline as lines, in place of `land`, when it can't be closed along the area's edge (data missing). |
+| `water` | rings | Lakes, reservoirs and river areas (`natural=water`, `waterway=riverbank`). |
+| `green` | rings | National parks, nature reserves and parks. |
+| `roads` | `[{"rank", "pts"}]` | Motorways and trunk roads (rank 1), primary (2) and secondary roads (3), as lines. |
+| `rivers` | lines | `waterway=river` centre lines. |
+| `places` | `[{"name", "at", "rank"}]` | Cities (rank 1), towns (2) and villages (3), with `at` as `[x, y]`. |
+
+Rings under 0.05 km² and roads and rivers under 300 m are left out.
 
 ## Planned fields
 

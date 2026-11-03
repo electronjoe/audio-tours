@@ -40,10 +40,19 @@ placed on it and the audio can be budgeted.
    note them).
 5. **Note the out-and-back overlap.** Where the return leg uses the same road, stories have to
    be split between directions (see 2-stops.md, `strict`).
+6. **Draw the base map.** `uv run tour map <slug>` (free, task 010) asks OpenStreetMap's
+   Overpass API once for the area around the route and stops (their box plus 5 km, or 15 % of
+   its larger side), caches the answer for good in `cache/overpass/` (`--refresh` asks again),
+   and writes `site/<slug>/map.json`: land and sea, water, parks, main roads, rivers and town
+   names, simplified to about 25 m. It prints the file's size and warns over 300 KB. If
+   Overpass is busy it retries once, then stops; try again later. Look at the map page with
+   `?sim` (the route should sit on its roads, and the sea where the coast is), then commit
+   `site/<slug>/map.json`. Rerun it when the route changes.
 
 ## Output
 
 - `route.json`.
+- `site/<slug>/map.json` (step 6), committed.
 - `[route] end = [lat, lon]` in `tour.toml`: where the trip finishes, usually the last point
   of the return leg. The stop cards' Navigate from here links end there (task 003). Use a
   public place, such as the town centre, never a home address.

@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 from . import config, eleven, master, new, publish, render, songs
+from . import basemap
 from . import route as route_tools
 from .script import Problem, check_file, load_tracks
 from .spend import Guard, read_ledger
@@ -232,6 +233,12 @@ def cmd_route(args: argparse.Namespace) -> None:
     print(f"  -> {config.show(out)}")
 
 
+def cmd_map(args: argparse.Namespace) -> None:
+    """Draw the tour's base map from OpenStreetMap (cached) into site/<slug>/map.json (task 010)."""
+    for line in basemap.make(config.tour(args.tour), publish.SITE_DIR, refresh=args.refresh):
+        print(line)
+
+
 def cmd_plan_check(args: argparse.Namespace) -> None:
     """Offline: check the stops against route.json and docs/process/2-stops.md; exit 1 on errors."""
     tour = config.tour(args.tour, args.draft)
@@ -351,6 +358,11 @@ def main() -> None:
     p.add_argument("--spacing", type=float, default=route_tools.SPACING, help="metres between kept points")
     p.add_argument("--refresh", action="store_true", help="ask OSRM again instead of using cache/osrm/")
     p.set_defaults(func=cmd_route)
+
+    p = sub.add_parser("map", help="free (OpenStreetMap): draw the area around the route into site/<tour>/map.json")
+    p.add_argument("tour")
+    p.add_argument("--refresh", action="store_true", help="ask Overpass again instead of using cache/overpass/")
+    p.set_defaults(func=cmd_map)
 
     p = sub.add_parser("plan-check", help="offline: check triggers, timing, radii and strict against route.json")
     p.add_argument("tour")

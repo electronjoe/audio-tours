@@ -78,6 +78,8 @@ def publish(tour: config.Tour, site_dir: Path = SITE_DIR) -> None:
             "lookahead": player.get("lookahead", 2), "stops": stops,
             "route": json.loads(route_file.read_text()) if route_file.exists() else {}}
     data["route"] |= route_end(tour)
+    if (out / "map.json").exists():
+        data["map"] = "map.json"  # the base map from `tour map` (task 010)
     (out / "tour.json").write_text(json.dumps(data, ensure_ascii=False, indent=1) + "\n")
     total = sum(s.get("bytes", 0) for s in stops)
     print(f"{tour.slug}: {len(stops)} stops, {len(keep)} with audio, {total / 1e6:.1f} MB")
