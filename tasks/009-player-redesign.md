@@ -1,6 +1,6 @@
 # 009: Player redesign: the glance screen and a map page (A.3)
 
-Status: doing · Priority: high · Raised: 2026-11-03 (player redesign demos)
+Status: doing (on branch `player-redesign`, steps 1–3 of 9 done) · Priority: high · Raised: 2026-11-03 (player redesign demos)
 
 ## Why
 
@@ -270,4 +270,13 @@ pixel but for clocks and distances.
   screen; nothing plays or starts until a tap names it; Resume plays the story in one tap".
   "Start plays nothing" is still checked after the first Start, and after Continue and Start
   from the beginning.
+
+## Progress (2026-11-03)
+
+Work is on the branch `player-redesign`, not yet merged; the branch's copy of this file has the
+full "As built" notes. Done there: step 1 (selector table and screenshot pass in
+`tests/player_drive.py`), step 2 (`app.js` split into `app.js`, `map.js`, `view.js`), step 3
+(setup, car screen, offers, All stories, landscape, the tour list). `uv run pytest` 95 passed;
+`player_drive.py hobart` 64 checks, 0 failures. Next: step 4 (route progress), task 010
+(`tour map`), then steps 5–8. Step 9 (road test) is Scott's.
 
