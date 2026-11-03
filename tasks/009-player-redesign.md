@@ -397,7 +397,8 @@ base map keeps its slightly brighter colours, to judge on the phone in daylight 
 
 ## Progress (2026-11-03)
 
-Work is on the branch `player-redesign`, pushed to GitHub, not yet merged. Steps 1–8 are done there (see As
+Merged to `main` (fast-forward from `player-redesign`) and deployed to Pages on 2026-11-03, so the
+road test runs on the live site. Steps 1–8 are done there (see As
 built), with task 010's `tour map` (Hobart's `map.json`). `uv run pytest` 111 passed;
 `player_drive.py hobart` 99 checks, 0 failures. All stories now shows one "Next" (As built,
 after step 8).
