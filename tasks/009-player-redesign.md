@@ -390,17 +390,18 @@ lights only the next stop's pin and zone. Triggering is unchanged. Tests: one ro
 before Start, the other armed one Later; with a story queued no other row reads Next (`SEL`
 `next`, `next_now` now find `.st-next`). 99 checks, 0 failures.
 
+**Step 6 checkpoint answered (2026-11-03).** The map card's Next story line drops "N of M"
+(the car screen keeps it), so "Next story · 4.3 km · 3 min" fits on one line in landscape. The
+base map keeps its slightly brighter colours, to judge on the phone in daylight (step 9). Stop
+8's label "Boyer Mill" is kept.
+
 ## Progress (2026-11-03)
 
-Work is on the branch `player-redesign`, not yet merged. Steps 1–8 are done there (see As
+Work is on the branch `player-redesign`, pushed to GitHub, not yet merged. Steps 1–8 are done there (see As
 built), with task 010's `tour map` (Hobart's `map.json`). `uv run pytest` 111 passed;
 `player_drive.py hobart` 99 checks, 0 failures. All stories now shows one "Next" (As built,
 after step 8).
 
-Open, waiting on Scott:
-- From the step 6 checkpoint: the map card's first line wraps when long ("Next story · 2 of 8
-  · 1.0 km · under a minute"; dropping "N of 8" there would fix it), and the base map's
-  colours are a little brighter than the demo's.
-- The step 1 screenshot review (acceptance box).
+Open, waiting on Scott: the step 1 screenshot review (acceptance box).
 
 Next: step 9, the road test, is Scott's.

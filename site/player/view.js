@@ -275,7 +275,8 @@ function mapCardHTML() {
     <p class="o-why">${cur.place ? `${cur.place} · ` : ""}<span id="p2-left"></span> left</p>${songLine(cur)}`;
   if (finished()) return `<p class="label">No more stories</p><p class="o-title">${heardCount()} of ${all} stories heard</p>`;
   const n = nextStory();
-  return n ? `<p class="label">Next story · ${n.s.n} of ${all}<span id="p2-d"></span></p><p class="o-title">${n.s.title}</p><p class="o-why">${n.s.place}</p>` : "";
+  // No "N of M" here (the car screen has it): with the distance and minutes, the line wrapped.
+  return n ? `<p class="label">Next story<span id="p2-d"></span></p><p class="o-title">${n.s.title}</p><p class="o-why">${n.s.place}</p>` : "";
 }
 
 /** Something new for the car (a story starting, a Resume or missed offer, the end) brings page
