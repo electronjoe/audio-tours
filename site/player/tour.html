@@ -16,8 +16,11 @@
   <div class="pager" id="pager">
     <section class="page glance" id="p1"></section>
     <section class="page map-page" id="p2">
-      <div class="p2-map" id="p2map"><svg id="map" role="img" aria-label="Route map with stops"></svg></div>
-      <div class="p2-top"><button class="pg-btn" id="to-story" data-act="toStory">‹ Story</button></div>
+      <div class="p2-map" id="p2map"></div>
+      <div class="p2-top"><button class="pg-btn" id="to-story" data-act="toStory">‹ Story</button><span class="spacer"></span>
+        <button class="pg-btn" id="map-mode" data-act="mapMode">Whole route</button></div>
+      <div class="p2-bottom" id="p2-bottom"><div id="p2card"></div>
+        <p class="p2-hint">Tap a numbered story for details. ♪ marks a story followed by a song. A new story brings you back to the story page.</p></div>
     </section>
   </div>
   <div class="dots" aria-hidden="true"><span class="on"></span><span></span></div>

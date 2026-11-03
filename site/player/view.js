@@ -4,7 +4,9 @@
 //   stale progress; fresh progress opens the car screen, not started, one tap from carrying on.
 // - The car screen (page one, always dark): a status row, a ring (distance to the next story, or
 //   the story playing), one offer at a time, and a dock of two big buttons.
-// - The map page (page two, map.js), one swipe or Map › away.
+// - The map page (page two, map.js), one swipe or Map › away: the route, pins, the car, and a card
+//   (a tapped pin, the song offer, what's playing or the next story). A story starting, a Resume
+//   or missed offer, or arriving brings page one back; a song offer doesn't.
 // - All stories: a full-screen list over either, with the log, Start over and the help.
 //
 // Loaded last, after app.js (the engine) and map.js; main() at the bottom starts it all.
@@ -16,6 +18,7 @@ const V = {
   open: null, // the row whose actions are showing
   log: false, // Why did that play? is open
   page: 0, // the car screen's page: 0 the story, 1 the map
+  key: null, // what was playing and offered at the last render: a change to something new returns to page one
   geo: null, // the geolocation permission: "granted", "prompt", "denied" or null (unknown)
   install: null, // Chrome's beforeinstallprompt event, while it offers one
   installed: false,
@@ -219,11 +222,11 @@ function offerHTML() {
 
 /** The song after a stop (tasks/006): ▶ Play on Spotify when there's room before the next
  *  trigger, else Save for later. On the car screen and the map page. */
-function songOffer() {
+function songOffer(id = "offer") {
   const s = S.song, g = s?.song;
   if (!g) return "";
   const room = songRoom(g);
-  return `<div class="offer song" id="offer"><p class="label">♪ A song for this stretch</p>
+  return `<div class="offer song" id="${id}"><p class="label">♪ A song for this stretch</p>
     <p class="o-title">${esc(g.title)} · ${esc(g.artist)}</p><p class="o-why">${esc(g.why)} ${mmss(g.length)}.</p>
     ${room ? "" : `<p class="o-why song-save"><b>Save for later</b>: the next story comes before it would end. It stays in All stories, under story ${s.n}.</p>`}
     <div class="o-row">${room ? `<a class="o-yes song-play" href="${esc(g.spotify)}" target="_blank" rel="noopener" data-id="${s.id}">▶ Play on Spotify</a>` : ""}
@@ -239,6 +242,40 @@ function glanceHTML() {
       <div class="caption">${g.cap}</div></div>
     ${offerHTML()}
     <div class="dock">${g.left}<button class="dock-btn" id="open-stories" data-act="openSheet">All stories</button></div>`;
+}
+
+// --- the map page's card ---------------------------------------------------------------
+
+/** By priority: the tapped pin, the song offer, what's playing, the end, the next story. */
+function mapCardHTML() {
+  const all = stops().length, i = MAP.sel;
+  const songLine = (s) => (s.song ? `<p class="o-why song-line">♪ Then a song: ${esc(s.song.title)} · ${esc(s.song.artist)}</p>` : "");
+  if (i != null) {
+    const s = stops()[i], st = stateOf(s, i), nav = navLink(S.tour, i);
+    return `<div class="offer pin-card" id="pin-card" data-id="${s.id}"><p class="label">Story ${s.n} · ${LABEL[st]}</p>
+      <p class="o-title">${s.title}</p><p class="o-why">${[s.place, s.duration ? mmss(s.duration) : "no audio yet"].filter(Boolean).join(" · ")}</p>
+      ${songLine(s)}<div class="o-row"><button class="o-yes" id="pin-play" data-act="mapPlay" data-i="${i}">${st === "playing" ? "Restart" : "Play now"}</button>
+      ${nav ? `<a class="o-no nav" href="${nav.url}" target="_blank" rel="noopener">${nav.label}</a>` : ""}</div></div>`;
+  }
+  if (S.song?.song) return songOffer("map-offer");
+  const cur = S.current;
+  if (cur) return `<p class="label">Now playing · ${cur.n} of ${all}</p><p class="o-title">${cur.title}</p>
+    <p class="o-why">${cur.place ? `${cur.place} · ` : ""}<span id="p2-left"></span> left</p>${songLine(cur)}`;
+  if (finished()) return `<p class="label">No more stories</p><p class="o-title">${heardCount()} of ${all} stories heard</p>`;
+  const n = nextStory();
+  return n ? `<p class="label">Next story · ${n.s.n} of ${all}<span id="p2-d"></span></p><p class="o-title">${n.s.title}</p><p class="o-why">${n.s.place}</p>` : "";
+}
+
+/** Something new for the car (a story starting, a Resume or missed offer, the end) brings page
+ *  one back; a song offer doesn't, it's on the map page too. */
+function backToStory() {
+  const key = [S.current?.id, S.started && S.resume[0]?.id, S.missed.map((s) => s.id).join(), finished()].join("|");
+  const fresh = S.current || (S.started && S.resume.length) || S.missed.length || finished();
+  if (V.key != null && key !== V.key && fresh && V.page === 1) {
+    MAP.sel = null;
+    goto(0);
+  }
+  V.key = key;
 }
 
 // --- All stories ------------------------------------------------------------------------
@@ -320,7 +357,10 @@ function onPage() {
   if (k === V.page) return;
   V.page = k;
   document.querySelectorAll(".dots span").forEach((d, j) => d.classList.toggle("on", j === k));
-  if (k === 1) renderMap();
+  if (k === 1) {
+    MAP.cam = null; // arrive framed, then glide
+    drawMap();
+  } else leaveMap();
 }
 
 function toast(msg) {
@@ -341,7 +381,12 @@ function render() {
   $("#drive").hidden = !car;
   set($("#setup"), car ? "" : setupHTML());
   set($("#p1"), car ? glanceHTML() : "");
-  if (car && V.page === 1) renderMap();
+  if (car) {
+    backToStory();
+    set($("#p2card"), mapCardHTML());
+    $("#map-mode").textContent = MAP.mode === "route" ? "Follow car" : "Whole route";
+    if (V.page === 1) drawMap();
+  }
   $("#sheet").hidden = !V.sheet;
   set($("#stories"), storiesHTML());
   $("#log-toggle").textContent = V.log ? "Hide the log" : "Why did that play?";
@@ -358,7 +403,7 @@ function tick() {
   if (cur) {
     const dur = audio.duration || cur.duration || 0, t = audio.currentTime || 0;
     frac = dur ? t / dur : 0;
-    if ($("#left")) $("#left").textContent = mmss(Math.max(0, dur - t));
+    for (const el of [$("#left"), $("#p2-left")]) if (el) el.textContent = mmss(Math.max(0, dur - t));
   } else if (finished()) frac = 1;
   else {
     const n = nextStory();
@@ -367,6 +412,7 @@ function tick() {
       const [num, unit] = ringDist(n.d);
       if ($("#dist")) $("#dist").textContent = num;
       if ($("#mins")) $("#mins").textContent = n.mins != null && n.d > 0 ? `${unit} · ${fmtMins(n.mins)}` : unit;
+      if ($("#p2-d")) $("#p2-d").textContent = ` · ${n.d > 0 ? `${num} ${unit === "metres" ? "m" : unit}` : "in the zone"}${n.mins != null && n.d > 0 ? ` · ${fmtMins(n.mins)}` : ""}`;
     } else if ($("#dist")) {
       $("#dist").textContent = "–";
       $("#mins").textContent = "waiting for GPS";
@@ -374,6 +420,7 @@ function tick() {
   }
   const ring = $("#ring");
   if (ring) ring.style.strokeDashoffset = RING * (1 - frac);
+  if (V.page === 1 && carScreen()) drawMap(false);
   document.querySelectorAll(".dist[data-i]").forEach((el) => {
     const s = stops()[Number(el.dataset.i)];
     el.textContent = S.fix ? ` · ${km(metres(S.fix, s))} away` : "";
@@ -425,6 +472,9 @@ const ACT = {
   },
   toMap() { goto(1); },
   toStory() { goto(0); },
+  mapMode() { MAP.mode = MAP.mode === "route" ? "follow" : "route"; MAP.sel = null; },
+  pin(i) { MAP.sel = MAP.sel === i ? null : i; },
+  mapPlay(i) { begin(); startHere(i); MAP.sel = null; },
   sim() { begin(); simulate(Number(new URLSearchParams(location.search).get("sim")) || 20); },
 };
 

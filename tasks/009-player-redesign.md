@@ -1,6 +1,6 @@
 # 009: Player redesign: the glance screen and a map page (A.3)
 
-Status: doing (on branch `player-redesign`, steps 1–4 of 9 done) · Priority: high · Raised: 2026-11-03 (player redesign demos)
+Status: doing (on branch `player-redesign`, steps 1–5 of 9 done) · Priority: high · Raised: 2026-11-03 (player redesign demos)
 
 ## Why
 
@@ -298,12 +298,41 @@ pixel but for clocks and distances.
   a reload 5 km before stop 8 stays on the return leg; a gap that lands at New Norfolk on the
   way out jumps there on the outbound leg. 73 checks, 0 failures.
 
+**Step 5.** The map page (`map.js`, rewritten; `mapCardHTML` and `backToStory` in `view.js`).
+- SVG in metres around the route and stops' centre (the projection map.json uses), built the
+  first time the page shows. Layers: a slot for the base map (step 6), the stops' zones at
+  their real radius (lit when armed, playing, queued or offered), the route, the driven line
+  (the route up to `S.along`), pins and the car. Line widths are `vector-effect:
+  non-scaling-stroke`; pins and the car are scaled by metres per pixel, so they keep their
+  size. Pins that would sit within 30 px of an earlier one move right (Hobart's stops 3 and 7
+  share a point; 2 and 8 are 900 m apart).
+- The car sits on the route at `S.along` and points along it; off the route, at the fix,
+  pointing the way the last two fixes went.
+- Camera: **Whole route** fits every pin and zone; **Follow car** frames the car and the story
+  it's heading for (or the one playing), at least 4 km across; a tapped pin is framed while
+  following. The frame is the part of the screen the buttons and card leave free (above the
+  card in portrait, left of it in landscape, where the card is a right-hand column). It glides
+  by animation frames only while the map page is showing, and snaps when the page arrives or
+  with reduced motion.
+- The card, by priority: a tapped pin (state, place, length, song; **Play now**, which is
+  `startHere`, and **Navigate from here**), the song offer (its own id, `map-offer`), Now
+  playing with time left, No more stories, Next story with distance and minutes.
+- Back to page one: when what's playing, the Resume offer after Continue, the missed offers or
+  "finished" change to something new. A story ending or a song offer doesn't.
+- Tests (player_drive.py, "Map page", 15 checks): pins = stops with ♪ on the song's; car and
+  driven line drawn; following frames the car and the next pin; Whole route shows every pin;
+  a pin's card and its Play now; a story starting (by pin, by GPS), a missed offer and
+  arriving bring page one back; a story ending and a song offer don't; No thanks on the map.
+  `SEL` has `map_whole` and `map_pin` (from following: Whole route, then the pin), so the
+  map-whole and map-pin scenes are shot. 88 checks, 0 failures.
+
 ## Progress (2026-11-03)
 
 Work is on the branch `player-redesign`, not yet merged; the branch's copy of this file has the
 full "As built" notes. Done there: step 1 (selector table and screenshot pass in
 `tests/player_drive.py`), step 2 (`app.js` split into `app.js`, `map.js`, `view.js`), step 3
 (setup, car screen, offers, All stories, landscape, the tour list), step 4 (route progress for
-the ring). `uv run pytest` 95 passed; `player_drive.py hobart` 73 checks, 0 failures. Next:
-task 010 (`tour map`), then steps 5–8. Step 9 (road test) is Scott's.
+the ring), task 010's `tour map` (Hobart's `map.json`), step 5 (the map page). `uv run pytest`
+110 passed; `player_drive.py hobart` 88 checks, 0 failures. Next: steps 6–8. Step 9 (road test)
+is Scott's.
 

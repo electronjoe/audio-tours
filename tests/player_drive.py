@@ -27,6 +27,9 @@ points. Checks:
   between consecutive outbound points, the fill never shrinks, the return leg never shows
   outbound progress (not after a reload there either), and a gap that lands where the legs
   share a road stays on the outbound leg
+- the map page: one numbered pin per stop (♪ on a song's), the car and the driven line,
+  Whole route shows every pin, a pin's card plays that stop; a story starting, a missed offer
+  or arriving brings page one back, a story ending or a song offer doesn't
 - after Download, the tour opens and plays with the network off
 
 The final screenshot goes to tours/<tour>/build/player-test.png, or to $PLAYER_TEST_SHOT.
@@ -85,8 +88,15 @@ SEL: dict[str, str | tuple[str, ...] | None] = {
     "open_log": ("sheet", "#log-toggle"),
     "log": "#log",
     "open_map": "#to-map",
-    "map_whole": None,
-    "map_pin": None,
+    "map_whole": "#map-mode",
+    "map_pin": ("#map-mode", "#p2 .m-pin[data-id={id}]"),  # from following: the whole route, then the pin
+    "map_pins": "#p2 .m-pin",
+    "map_car": "#p2 .m-car",
+    "map_done": "#p2 .m-done",
+    "map_card": "#p2card",
+    "map_song_dismiss": "#map-offer [data-act=dismissSong]",
+    "pin_play": "#pin-play",
+    "pager": "#pager",
 }
 
 
@@ -365,6 +375,94 @@ def progress_check(page, ctx, tour: dict, check) -> None:
     check(r["along"] and abs(r["along"]["m"] - cum[j + 1]) < 300, f"after a gap to New Norfolk on the way out, progress jumps there on the outbound leg ({r['along']}, want ~{cum[j + 1]:.0f})")
 
 
+def on_page(page) -> int:
+    """Which page of the car screen is showing: 0 the story, 1 the map."""
+    page.wait_for_timeout(900)  # a smooth scroll
+    return page.evaluate("(s) => { const p = document.querySelector(s); return Math.round(p.scrollLeft / p.clientWidth); }", sel("pager"))
+
+
+def map_check(page, ctx, tour: dict, check) -> None:
+    """Task 009 step 5: the map page and when it hands back to page one."""
+    ids = [s["id"] for s in tour["stops"]]
+    begin(page, ctx, tour, heard=1)
+    at(page, ctx, before(tour, 1, 4000))
+    tap(page, "open_map")
+    check(on_page(page) == 1, "Map › opens the map page")
+    pins = page.eval_on_selector_all(sel("map_pins"), "els => els.map(e => [e.dataset.id, e.textContent.replace(/\\s+/g, '')])")
+    check([p[0] for p in pins] == ids and all(t.startswith(str(k + 1)) for k, (_, t) in enumerate(pins)), f"one numbered pin per stop ({pins})")
+    check(all(("♪" in t) == ("song" in s) for (_, t), s in zip(pins, tour["stops"])), "♪ on the pins of stories followed by a song")
+    check(page.get_attribute(sel("map_car"), "display") == "inline" and len(page.get_attribute(sel("map_done"), "d") or "") > 20,
+          "the car and the driven line are drawn")
+    view = page.evaluate("(s) => { const r = document.querySelector(s).getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; }", "#p2")
+
+    def on_screen(selector: str) -> bool:
+        r = page.evaluate("(s) => { const r = document.querySelector(s).getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; }", selector)
+        return r[0] >= view[0] and r[1] >= view[1] and r[2] <= view[2] and r[3] <= view[3]
+
+    check(on_screen(sel("map_car")) and on_screen(f"{sel('map_pins')}[data-id={ids[1]}]"), "following: the car and the next story are both on screen")
+    tap(page, "map_whole")
+    page.wait_for_timeout(1500)
+    check("Follow car" in page.inner_text(sel("map_whole")) and all(on_screen(f"{sel('map_pins')}[data-id={i}]") for i in ids),
+          "Whole route shows every pin")
+    tap(page, "map_whole")
+    tap(page, "map_pin", id=ids[2])
+    card = page.inner_text(sel("map_card"))
+    check(tour["stops"][2]["title"].lower() in card.lower() and "story 3" in card.lower() and page.is_visible(sel("pin_play")), f"a tapped pin shows its card ({card[:80]!r})")
+    tap(page, "pin_play")
+    st = state(page)
+    check(st["current"] == ids[2] and logged(st, "play", 3, "manual"), f"the pin card's Play now plays that stop ({st['current']})")
+    check(on_page(page) == 0, "and a story starting brings page one back")
+    tap(page, "open_map")
+    finish_current(page)
+    page.wait_for_function("() => !window.__tour.S.current")
+    check(on_page(page) == 1, "a story ending leaves the map page showing")
+    page.evaluate("() => window.__tour.trigger(3)")
+    check(state(page)["current"] == ids[3] and on_page(page) == 0, "a story GPS starts brings page one back")
+    # A song offer stays on the map page, and can be answered there.
+    try:
+        fixture = json.loads(json.dumps(tour))
+        fixture["stops"][0]["song"] = TEST_SONG
+        OVERRIDE[f"/{TOUR}/tour.json"] = json.dumps(fixture).encode()
+        begin(page, ctx, tour)
+        playing(page, ctx, tour, 0, 0.5)
+        tap(page, "open_map")
+        on_page(page)
+        finish_current(page)
+        page.wait_for_function("() => window.__tour.S.song && !window.__tour.S.current", timeout=5000)
+        at(page, ctx, stop_pt(tour, 0), speed=10)
+        check(on_page(page) == 1 and TEST_SONG["title"] in page.inner_text(sel("map_card")), "a song offer stays on the map page, in its card")
+        tap(page, "map_song_dismiss")
+        check(TEST_SONG["title"] not in page.inner_text(sel("map_card")) and not page.evaluate("() => window.__tour.S.song"), "and No thanks works there")
+    finally:
+        OVERRIDE.clear()
+    # A stop passed while away is offered on page one.
+    out, zone = tour["route"]["outbound"], tour["stops"][1]
+    d = [metres(pt, (zone["lat"], zone["lon"])) for pt in out]
+    inside = [k for k in range(len(out)) if d[k] <= zone["radius"]]
+    a = max(k for k in range(inside[0]) if d[k] > zone["radius"] + 300)
+    b = min(k for k in range(inside[-1], len(out)) if d[k] > zone["radius"] + 300)
+    begin(page, ctx, tour, heard=1)
+    at(page, ctx, out[a - 1])
+    at(page, ctx, out[a])
+    tap(page, "open_map")
+    on_page(page)
+    set_visible(page, False)
+    set_visible(page, True)
+    at(page, ctx, out[b + 1])
+    page.wait_for_function("() => window.__tour.S.missed.length", timeout=5000)
+    check(on_page(page) == 0, "a stop passed while away brings page one back, with its offer")
+    # Arriving brings page one back.
+    begin(page, ctx, tour, heard=len(ids) - 1)
+    tap(page, "open_map")
+    on_page(page)
+    page.evaluate("() => window.__tour.trigger(%d)" % (len(ids) - 1))
+    on_page(page)
+    tap(page, "open_map")
+    finish_current(page)
+    k = on_page(page)
+    check(k == 0 and "no more stories" in text_of(page, "now").lower(), f"arriving (the last story ends) brings page one back (page {k})")
+
+
 def drive_checks(browser, url: str, tour: dict, check, failures: list[str]) -> None:
     """Every behaviour check, in one browser context."""
     stops = [s["id"] for s in tour["stops"]]
@@ -595,6 +693,9 @@ def drive_checks(browser, url: str, tour: dict, check, failures: list[str]) -> N
 
     print("Route progress")
     progress_check(page, ctx, tour, check)
+
+    print("Map page")
+    map_check(page, ctx, tour, check)
 
     print("Offline")
 

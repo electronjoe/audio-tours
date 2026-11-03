@@ -126,19 +126,51 @@ a { color: var(--accent); }
   .dots { top: calc(3px + env(safe-area-inset-top)); }
 }
 
-/* The map page (map.js). */
-.map-page { background: var(--bg); }
-.p2-map { position: absolute; inset: 0; display: grid; place-items: center; padding: 80px 16px 24px; }
+/* The map page (map.js): a dark map, buttons on top, a card at the bottom. Pins, the car and line
+   widths keep their size on screen at any zoom (non-scaling strokes; map.js scales the pins). */
+.map-page { background: #0d1312; overflow: hidden; }
+.p2-map { position: absolute; inset: 0; }
 .p2-top { position: absolute; top: 0; left: 0; right: 0; display: flex; gap: 8px; align-items: center;
   padding: calc(16px + env(safe-area-inset-top)) 20px 32px; background: linear-gradient(to bottom, rgba(5, 7, 7, .85), rgba(5, 7, 7, 0)); }
-#map { width: 100%; max-height: 100%; }
-#map .route { fill: none; stroke: #34413e; stroke-width: 5; }
-#map .route.ret { stroke-dasharray: 12 10; stroke-width: 3; }
-#map .pin circle { fill: var(--accent); fill-opacity: .15; stroke: var(--accent); stroke-width: 3; }
-#map .pin.played circle, #map .pin.skipped circle, #map .pin.missed circle { stroke: #63736f; fill: #63736f; }
-#map .pin.playing circle { fill-opacity: .4; }
-#map .pin text { fill: var(--fg); font: bold 34px system-ui; text-anchor: middle; dominant-baseline: central; }
-#map .me { fill: #ffffff; stroke: var(--bg); stroke-width: 4; }
+.p2-top .spacer { flex: 1; }
+.p2-bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 40px 20px calc(20px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, #050707 62%, rgba(5, 7, 7, 0)); }
+.p2-bottom .label { margin: 0 0 4px; }
+.p2-bottom .offer { margin-top: 0; }
+.p2-hint { margin: 12px 0 0; color: var(--muted); font-size: 13px; text-align: center; }
+.m { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.m path, .m-zone { vector-effect: non-scaling-stroke; }
+.m-edge { fill: none; stroke: #18211f; stroke-width: 11px; stroke-linecap: round; stroke-linejoin: round; }
+.m-route { fill: none; stroke: #34413e; stroke-width: 7px; stroke-linecap: round; stroke-linejoin: round; }
+.m-done { fill: none; stroke: var(--accent); stroke-width: 7px; stroke-linecap: round; stroke-linejoin: round; }
+.m-zone { fill: var(--accent); fill-opacity: 0; stroke: var(--accent); stroke-opacity: 0; stroke-width: 1px; }
+.m-zone.armed { fill-opacity: .1; stroke-opacity: .5; }
+.m-zone.playing { fill-opacity: .22; stroke-opacity: .8; animation: m-pulse 1.6s ease-in-out infinite; }
+.m-zone.queued, .m-zone.resume, .m-zone.missed { fill-opacity: .08; stroke-opacity: .4; }
+.m-hit { fill: transparent; }
+.m-pdot { fill: #0d1312; stroke: #5d6d69; stroke-width: 2; }
+.m-n { fill: #c9d4d1; font: 700 12px system-ui, sans-serif; text-anchor: middle; pointer-events: none; }
+.m-pin { cursor: pointer; }
+.m-pin.armed .m-pdot, .m-pin.queued .m-pdot, .m-pin.resume .m-pdot, .m-pin.missed .m-pdot { stroke: var(--accent); }
+.m-pin.playing .m-pdot { fill: var(--accent); stroke: var(--accent); }
+.m-pin.playing .m-n { fill: var(--accent-fg); }
+.m-pin.played .m-pdot { fill: #1b2523; stroke: #1b2523; }
+.m-pin.played .m-n { fill: #63736f; }
+.m-pin.skipped .m-pdot, .m-pin.missed .m-pdot { stroke-dasharray: 3 3; }
+.m-pin.sel .m-pdot { stroke: #ffffff; stroke-width: 3; }
+@keyframes m-pulse { 50% { fill-opacity: .06; } }
+.m-song circle { fill: var(--accent); stroke: #0d1312; stroke-width: 2; }
+.m-song text { fill: var(--accent-fg); font: 700 11px system-ui, sans-serif; text-anchor: middle; pointer-events: none; }
+.m-halo { fill: #ffffff; fill-opacity: .13; }
+.m-dot { fill: #ffffff; }
+.m-arrow { fill: #050707; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .p2-bottom { left: auto; top: calc(68px + env(safe-area-inset-top)); width: min(44%, 400px); display: flex; flex-direction: column;
+    justify-content: flex-end; padding: 0 calc(20px + env(safe-area-inset-right)) calc(14px + env(safe-area-inset-bottom)) 40px;
+    background: linear-gradient(to left, #050707 72%, rgba(5, 7, 7, 0)); }
+  .p2-hint { display: none; }
+  .p2-bottom .o-why { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+}
 
 /* All stories: a full-screen list, out of the way while driving. */
 #sheet { position: fixed; inset: 0; z-index: 10; overflow: auto; background: var(--bg);
@@ -186,6 +218,7 @@ a { color: var(--accent); }
 }
 @media (prefers-reduced-motion: reduce) {
   .ring .val, .prog > div, .dots span { transition: none; }
+  .m-zone.playing { animation: none; }
 }
 
 /* The tour list (home.html): the setup screen's look, one row per tour. */
