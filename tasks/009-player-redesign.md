@@ -355,6 +355,9 @@ full "As built" notes. Done there: step 1 (selector table and screenshot pass in
 `tests/player_drive.py`), step 2 (`app.js` split into `app.js`, `map.js`, `view.js`), step 3
 (setup, car screen, offers, All stories, landscape, the tour list), step 4 (route progress for
 the ring), task 010's `tour map` (Hobart's `map.json`), step 5 (the map page), step 6 (the base map
-under it). `uv run pytest` 110 passed; `player_drive.py hobart` 91 checks, 0 failures. Next:
-steps 7–8. Step 9 (road test) is Scott's.
+under it). `uv run pytest` 110 passed; `player_drive.py hobart` 91 checks, 0 failures. The
+checkpoint after step 6 (the map page over Hobart's base map) was presented and waits for
+Scott's OK. Open from it: the map card's first line wraps when long ("Next story · 2 of 8 ·
+1.0 km · under a minute"; dropping "N of 8" there would fix it), and the base map's colours
+are a little brighter than the demo's. Next: steps 7–8. Step 9 (road test) is Scott's.
 
