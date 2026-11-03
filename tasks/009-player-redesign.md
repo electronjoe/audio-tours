@@ -1,6 +1,6 @@
 # 009: Player redesign: the glance screen and a map page (A.3)
 
-Status: doing (on branch `player-redesign`, steps 1–3 of 9 done) · Priority: high · Raised: 2026-11-03 (player redesign demos)
+Status: doing (on branch `player-redesign`, steps 1–4 of 9 done) · Priority: high · Raised: 2026-11-03 (player redesign demos)
 
 ## Why
 
@@ -271,12 +271,39 @@ pixel but for clocks and distances.
   "Start plays nothing" is still checked after the first Start, and after Continue and Start
   from the beginning.
 
+**Step 4.** Route progress, in `app.js` ("route progress"), display only.
+- `buildPath()` joins outbound and return into one path at load (`S.path`: points, metres,
+  OSRM seconds or null) and places each stop's zone on it in sequence, as `plan-check` does:
+  `{entry, at, exit}` in metres, or null if the route doesn't pass within 300 m.
+- `locate()` moves `S.along` (`{k: segment, m: metres}`) on every used fix: forward only, 6 km
+  ahead, or the whole rest of the route after a gap (and when nothing in the window is within
+  300 m). Where the route passes the same road twice, the earlier pass wins: the first place
+  within 50 m of the nearest, then the nearest within 1 km after it; a place more than 50 m
+  behind the car doesn't count. The first version took the earliest near place alone, and held
+  the car 10 m short of Hobart's turnaround and then on the outbound road for a point of the
+  return leg; the test caught it.
+- `S.along` is saved with progress, so a reload on the return leg stays on it (where the legs
+  share the road from Hobart to Bushy Park, a fresh search would put the car on the outbound
+  leg). Start over and Start from the beginning clear it. `S.offRoute` starts true each
+  session: until a used fix lands within 300 m of the route, the ring is the straight line.
+- `toStop(i)` gives the ring: by road to the zone's entry, filling from the previous stop's zone
+  exit; minutes from `route.seconds`, else `recentSpeed()` (the higher of the latest fix's and
+  the 2-minute median, which the song room check now shares, so the lights don't blank the
+  minutes). Off the route, or past the zone without it triggering: the straight line and the
+  8 km fill, as before.
+- Tests (player_drive.py, "Route progress", 9 checks): every route point measures by road; on
+  the outbound leg the distance never grows between consecutive points and the fill never
+  shrinks; no return point shows outbound progress; the road is longer than the straight line
+  somewhere; minutes from speed on Hobart, and from a `route.seconds` fixture when it has one;
+  a reload 5 km before stop 8 stays on the return leg; a gap that lands at New Norfolk on the
+  way out jumps there on the outbound leg. 73 checks, 0 failures.
+
 ## Progress (2026-11-03)
 
 Work is on the branch `player-redesign`, not yet merged; the branch's copy of this file has the
 full "As built" notes. Done there: step 1 (selector table and screenshot pass in
 `tests/player_drive.py`), step 2 (`app.js` split into `app.js`, `map.js`, `view.js`), step 3
-(setup, car screen, offers, All stories, landscape, the tour list). `uv run pytest` 95 passed;
-`player_drive.py hobart` 64 checks, 0 failures. Next: step 4 (route progress), task 010
-(`tour map`), then steps 5–8. Step 9 (road test) is Scott's.
+(setup, car screen, offers, All stories, landscape, the tour list), step 4 (route progress for
+the ring). `uv run pytest` 95 passed; `player_drive.py hobart` 73 checks, 0 failures. Next:
+task 010 (`tour map`), then steps 5–8. Step 9 (road test) is Scott's.
 

@@ -31,6 +31,11 @@ const STALE_AFTER = 8 * 3600 * 1000; // ms; older saved progress asks "from the 
 const LOG_SIZE = 30; // event-log entries kept
 const SONG_MARGIN = 60; // s; offer a song only if the next trigger is this much further off than its length (tasks/006)
 const SONG_MIN_SPEED = 8; // m/s; the room check never assumes slower, so a stop at the lights opens no window
+const ALONG_WINDOW = 6000; // metres of route ahead that route progress searches, except after a gap
+const OFF_ROUTE = 300; // metres; further from the route, progress falls back to the straight line
+const ALONG_TIE = 50; // metres; of two places on the route about as near as each other, the earlier wins
+const ALONG_PASS = 1000; // metres; within this of the earlier place, the nearest wins
+const FILL_FROM = 8000; // metres; without route progress the ring fills over the last 8 km
 const $ = (sel) => document.querySelector(sel);
 
 const S = {
@@ -50,6 +55,9 @@ const S = {
   away: null, // {since, from, back}: set while hidden or after AWAY_AFTER without a fix
   holdSpeedUntil: 0, // no position-derived speed before this time (just after a gap)
   track: [], // the last 2 minutes of used fixes {lat, lon, speed, time}, speed null if unknown
+  path: null, // the route as one path, outbound then return, with each stop's zone on it (buildPath)
+  along: null, // where the car is on the path: {k: segment, m: metres from the start}; saved with progress
+  offRoute: true, // no used fix this session within OFF_ROUTE of the path: show straight lines
   log: [], // event log, newest last (also in localStorage)
   cached: new Set(), // stop ids whose audio is in the cache
   saving: false, // downloadAll is running
@@ -74,7 +82,7 @@ function save() {
     const pending = [...S.resume, S.current, ...S.queue].filter(Boolean).map((s) => s.id);
     const missed = S.missed.map((s) => s.id);
     S.savedAt = Date.now();
-    localStorage.setItem(key(), JSON.stringify({ cursor: S.cursor, status: S.status, pending, missed, savedAt: S.savedAt }));
+    localStorage.setItem(key(), JSON.stringify({ cursor: S.cursor, status: S.status, pending, missed, along: S.along, savedAt: S.savedAt }));
   } catch {}
 }
 function load() {
@@ -85,6 +93,8 @@ function load() {
     S.resume = (saved.pending || []).map(byId).filter(Boolean);
     S.missed = (saved.missed || []).map(byId).filter(Boolean);
     S.savedAt = saved.savedAt || 0;
+    const a = saved.along;
+    S.along = S.path && a && a.k >= 0 && a.k < S.path.pts.length - 1 ? { k: a.k, m: a.m } : null;
     const progress = S.cursor || Object.keys(S.status).length || S.resume.length;
     // Progress saved before savedAt existed counts as stale.
     S.stale = Boolean(progress) && Date.now() - (saved.savedAt || 0) > STALE_AFTER;
@@ -271,6 +281,7 @@ function resetTour() {
   S.resume = [];
   S.missed = [];
   S.song = null;
+  S.along = null;
   audio.pause();
   S.current = null;
   logEvent("reset");
@@ -477,6 +488,7 @@ function onFix(lat, lon, accuracy, speed, { coarse = false } = {}) {
     logIgnored(S.away ? "settling" : "inaccurate", fix);
     return render();
   }
+  const wide = Boolean(S.away); // after a gap, route progress searches the whole rest of the route
   if (S.away) {
     const { since, from, back } = S.away;
     S.away = null;
@@ -491,6 +503,7 @@ function onFix(lat, lon, accuracy, speed, { coarse = false } = {}) {
     const dt = (now - S.last.time) / 1000;
     if (dt > 0) fix.speed = metres(S.last, fix) / dt;
   }
+  locate(fix, wide);
   S.last = fix;
   S.track = [...S.track.filter((f) => now - f.time <= 120000), { lat, lon, speed: fix.speed, time: now }];
   for (const i of armed()) {
@@ -575,8 +588,134 @@ function restart() {
   S.queue = [];
   S.resume = [];
   S.missed = [];
+  S.along = null;
   logEvent("reset");
   start();
+}
+
+// --- route progress (task 009) ------------------------------------------------------------
+// For display only: triggering stays straight-line. S.along is where the car is on the route,
+// outbound then return. It only moves forward and searches ALONG_WINDOW ahead, so where the
+// return leg runs back over the outbound road (Hobart to New Norfolk) the car can't snap to the
+// other leg; after a gap, or when nothing in the window is near, it searches the rest of the
+// route. It's saved with progress, so a reload on the return leg stays on the return leg. It
+// gives the ring's distance, fill and minutes, and the map's driven line and heading.
+
+const pt = (p) => ({ lat: p[0], lon: p[1] });
+
+/** The route as one path: points, metres and OSRM seconds from the start (secs null without
+ *  `route.seconds`), and each stop's zone on it, in sequence. Null without a route. */
+function buildPath(tour) {
+  const r = tour.route || {}, pts = [], cum = [], secs = [];
+  let timed = Boolean(r.seconds), base = 0;
+  for (const leg of ["outbound", "return"]) {
+    const p = r[leg] || [], t = r.seconds?.[leg];
+    if (!t || t.length !== p.length) timed = false;
+    p.forEach((q, k) => {
+      cum.push(pts.length ? cum[cum.length - 1] + metres(pts[pts.length - 1], pt(q)) : 0);
+      pts.push(pt(q));
+      secs.push(base + (t?.[k] ?? 0));
+    });
+    if (t?.length) base += t[t.length - 1];
+  }
+  if (pts.length < 2) return null;
+  const path = { pts, cum, secs: timed ? secs : null };
+  path.stops = placeStops(path, tour.stops);
+  return path;
+}
+
+/** Where each stop's zone is on the path, in sequence (as tour plan-check places triggers): the
+ *  first stretch inside it, after the stop before, that passes within OFF_ROUTE of its point.
+ *  {entry, at, exit} in metres from the start, or null if the route doesn't pass it. */
+function placeStops(path, list) {
+  const smp = [];
+  for (let k = 0; k < path.pts.length - 1; k++) {
+    const a = path.pts[k], b = path.pts[k + 1], L = path.cum[k + 1] - path.cum[k], n = Math.max(1, Math.ceil(L / 20));
+    for (let j = 0; j < n; j++) smp.push({ lat: a.lat + ((b.lat - a.lat) * j) / n, lon: a.lon + ((b.lon - a.lon) * j) / n, m: path.cum[k] + (L * j) / n });
+  }
+  smp.push({ ...path.pts[path.pts.length - 1], m: path.cum[path.cum.length - 1] });
+  let after = 0;
+  return list.map((s) => {
+    const d = smp.map((p) => metres(p, s)), near = Math.max(s.radius, OFF_ROUTE);
+    for (let a = 0; a < smp.length; a++) {
+      if (d[a] > near) continue;
+      let b = a;
+      while (b + 1 < smp.length && d[b + 1] <= near) b++;
+      if (b >= after) {
+        let best = Math.max(a, after);
+        for (let j = best; j <= b; j++) if (d[j] < d[best]) best = j;
+        if (d[best] <= OFF_ROUTE) {
+          let entry = best, exit = best;
+          for (let j = best; j >= Math.max(a, after) && d[j] <= s.radius; j--) entry = j;
+          for (let j = best; j <= b && d[j] <= s.radius; j++) exit = j;
+          after = best;
+          return { entry: smp[entry].m, at: smp[best].m, exit: smp[exit].m };
+        }
+      }
+      a = b;
+    }
+    return null;
+  });
+}
+
+/** Move S.along to a used fix: the nearest place on the path ahead, ALONG_WINDOW ahead unless
+ *  `wide`. Where the route passes the same road twice, the earlier pass wins: the first place
+ *  about as near as the nearest, then the nearest within ALONG_PASS after it. A place behind the
+ *  car (by more than ALONG_TIE) doesn't count. Further than OFF_ROUTE from all of it: S.offRoute. */
+function locate(fix, wide) {
+  const P = S.path;
+  if (!P) return;
+  const from = S.along?.m ?? 0, k0 = S.along?.k ?? 0;
+  const scan = (end) => {
+    const near = [];
+    for (let k = k0; k < P.pts.length - 1 && P.cum[k] <= end; k++) {
+      const { t, d } = along(P.pts[k], P.pts[k + 1], fix);
+      const m = P.cum[k] + Math.max(0, Math.min(1, t)) * (P.cum[k + 1] - P.cum[k]);
+      if (m >= from - ALONG_TIE) near.push({ k, d, m: Math.max(from, m) });
+    }
+    const min = Math.min(...near.map((c) => c.d));
+    if (!(min <= OFF_ROUTE)) return null;
+    const first = near.find((c) => c.d <= min + ALONG_TIE);
+    return near.filter((c) => c.m >= first.m && c.m <= first.m + ALONG_PASS).reduce((a, c) => (c.d < a.d ? c : a));
+  };
+  const hit = (!wide && S.along && scan(from + ALONG_WINDOW)) || scan(Infinity);
+  S.offRoute = !hit;
+  if (hit) S.along = { k: hit.k, m: Math.round(hit.m) };
+}
+
+/** OSRM's seconds from the start at `m` metres along the path. */
+function secsAt(m) {
+  const { cum, secs } = S.path;
+  let k = 0;
+  while (k < cum.length - 2 && cum[k + 1] < m) k++;
+  const f = Math.max(0, Math.min(1, (m - cum[k]) / (cum[k + 1] - cum[k] || 1)));
+  return secs[k] + f * (secs[k + 1] - secs[k]);
+}
+
+/** The speed to time the road ahead by: the higher of the latest fix's and the median of the last
+ *  2 minutes, so a stop at the lights doesn't make the minutes vanish. 0 if unknown. */
+function recentSpeed() {
+  const now = Date.now();
+  const v = S.track.filter((f) => now - f.time <= 120000 && f.speed != null).map((f) => f.speed).sort((a, b) => a - b);
+  const median = v.length ? (v[(v.length - 1) >> 1] + v[v.length >> 1]) / 2 : 0;
+  return Math.max(S.fix?.speed ?? 0, median);
+}
+
+/** How far to stop i's zone, for the ring: {d: metres to its edge (null without a fix), frac: how
+ *  full the ring is, secs: time to it (null if unknown), road: measured along the route}. On the
+ *  route the ring fills by road from the stop before's zone to this one's, timed by OSRM when
+ *  the route has `seconds`, else by speed; off it, a straight line and the last FILL_FROM. */
+function toStop(i) {
+  const s = stops()[i], P = S.path, z = P?.stops[i];
+  if (z && S.along && !S.offRoute && S.along.m <= z.exit) {
+    const m = S.along.m, d = Math.max(0, z.entry - m);
+    const from = Math.min((i > 0 && P.stops[i - 1]?.exit) || 0, z.entry);
+    const frac = z.entry > from ? Math.max(0, Math.min(1, (m - from) / (z.entry - from))) : 1;
+    const v = recentSpeed();
+    return { d, frac, secs: P.secs ? secsAt(z.entry) - secsAt(m) : v > 2 ? d / v : null, road: true };
+  }
+  const d = S.fix ? Math.max(0, metres(S.fix, s) - s.radius) : null, v = recentSpeed();
+  return { d, frac: d == null ? 0 : Math.max(0, Math.min(1, 1 - d / FILL_FROM)), secs: d != null && v > 2 ? d / v : null, road: false };
 }
 
 // --- simulation (?sim) ---------------------------------------------------------------
@@ -614,10 +753,7 @@ const esc = (t) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 /** The speed the room check assumes: the higher of the latest fix's and the median of the last
  *  2 minutes, but at least SONG_MIN_SPEED. */
 function songSpeed() {
-  const now = Date.now();
-  const v = S.track.filter((f) => now - f.time <= 120000 && f.speed != null).map((f) => f.speed).sort((a, b) => a - b);
-  const median = v.length ? (v[(v.length - 1) >> 1] + v[v.length >> 1]) / 2 : 0;
-  return Math.max(S.fix?.speed ?? 0, median, SONG_MIN_SPEED);
+  return Math.max(recentSpeed(), SONG_MIN_SPEED);
 }
 
 /** Seconds until GPS could trigger the next stop: straight-line distance to the edge of the
@@ -651,5 +787,6 @@ async function loadTour() {
   const schema = S.tour.schema ?? SCHEMA;
   if (schema !== SCHEMA) throw new Error(`it needs a newer player (tour.json schema ${schema}, this player reads ${SCHEMA}). Reload while online.`);
   S.tour.lookahead ||= 2;
+  S.path = buildPath(S.tour);
   load();
 }

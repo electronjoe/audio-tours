@@ -23,6 +23,10 @@ points. Checks:
 - a song on a stop (a fixture served in place of tour.json, never committed): the Now card
   shows it only after the stop ends, offers ▶ Play on Spotify or Save for later by the room
   before the next trigger, clears when the next stop starts, and stays in the stop's card
+- route progress (the ring): along the drive the distance to the next story never grows
+  between consecutive outbound points, the fill never shrinks, the return leg never shows
+  outbound progress (not after a reload there either), and a gap that lands where the legs
+  share a road stays on the outbound leg
 - after Download, the tour opens and plays with the network off
 
 The final screenshot goes to tours/<tour>/build/player-test.png, or to $PLAYER_TEST_SHOT.
@@ -271,6 +275,96 @@ def song_check(page, ctx, tour: dict, check) -> None:
         OVERRIDE.clear()
 
 
+def progress_check(page, ctx, tour: dict, check) -> None:
+    """Task 009 step 4: the ring measures along the road (S.along), outbound then return."""
+    out, ret = tour["route"]["outbound"], tour["route"]["return"]
+    path = out + ret
+    cum = [0.0]
+    for a, b in zip(path, path[1:]):
+        cum.append(cum[-1] + metres(a, b))
+    out_end = cum[len(out) - 1]
+    probe = """() => { const t = window.__tour, n = t.nextStory();
+        return {along: t.S.along, off: t.S.offRoute, i: n && n.i, d: n && n.d, frac: n && n.frac, mins: n && n.mins, road: n && n.road}; }"""
+    fresh(page)
+    at(page, ctx, out[0])
+    tap(page, "start")
+    page.wait_for_timeout(300)
+    rows = []
+    for pt in path:
+        at(page, ctx, pt)
+        rows.append(page.evaluate(probe))
+    on_road = [r for r in rows if r["i"] is not None]
+    check(on_road and all(r["road"] and not r["off"] for r in on_road), "every route point is on the route: the ring measures by road")
+    grew = [(k, rows[k]["d"], rows[k + 1]["d"]) for k in range(len(out) - 1)
+            if rows[k]["i"] is not None and rows[k]["i"] == rows[k + 1]["i"] and rows[k + 1]["d"] > rows[k]["d"] + 30]
+    check(not grew, f"outbound: the distance to the next story never grows between consecutive points {grew[:3]}")
+    shrank = [k for k in range(len(path) - 1) if rows[k]["i"] is not None and rows[k]["i"] == rows[k + 1]["i"]
+              and rows[k + 1]["frac"] < rows[k]["frac"] - 1e-6]
+    check(not shrank, f"and the ring never empties on the way to it {shrank[:3]}")
+    behind = [k for k in range(len(out), len(path)) if rows[k]["along"]["m"] < out_end - 1]
+    check(not behind, f"the return leg never shows outbound progress {behind[:3]}")
+    straight = [metres(path[k], stop_pt(tour, r["i"])) - tour["stops"][r["i"]]["radius"] for k, r in enumerate(rows) if r["i"] is not None]
+    check(any(r["d"] > 1.1 * x + 200 for r, x in zip(on_road, straight)), "somewhere the road is clearly longer than the straight line")
+    timed = all(tour["route"].get("seconds", {}).get(k) for k in ("outbound", "return"))
+    if not timed:
+        check(all(r["mins"] is not None and abs(r["mins"] * 60 * 22 - r["d"]) < 1 for r in on_road if r["d"] > 0),
+              "route.json has no seconds: the minutes come from the speed (22 m/s)")
+    # With OSRM's seconds (a fixture: 20 m/s everywhere) the minutes come from them, not the speed.
+    fixture = json.loads(json.dumps(tour))
+    secs = {}
+    for leg in ("outbound", "return"):
+        pts, t = fixture["route"][leg], [0.0]
+        for a, b in zip(pts, pts[1:]):
+            t.append(t[-1] + metres(a, b) / 20)
+        secs[leg] = t
+    fixture["route"]["seconds"] = secs
+    OVERRIDE[f"/{TOUR}/tour.json"] = json.dumps(fixture).encode()
+    try:
+        fresh(page)
+        at(page, ctx, out[0])
+        tap(page, "start")
+        page.wait_for_timeout(300)
+        for pt in out[:20]:
+            at(page, ctx, pt, speed=30)
+        r = page.evaluate(probe)
+        check(r["road"] and r["d"] > 1000 and abs(r["mins"] * 60 - r["d"] / 20) < 2,
+              f"with route.seconds the minutes are OSRM's time to the zone, not the speed ({r['mins']:.1f} min for {r['d']:.0f} m)")
+    finally:
+        OVERRIDE.clear()
+    # A reload where the return leg runs over the outbound road, 5 km before the last story: still the return leg.
+    last = tour["stops"][-1]
+    k = next(j for j in range(len(out), len(path)) if metres(path[j], stop_pt(tour, len(tour["stops"]) - 1)) - last["radius"] < 5000)
+    fresh(page)
+    at(page, ctx, out[0])
+    tap(page, "start")
+    page.wait_for_timeout(300)
+    for pt in path[: k + 1]:
+        at(page, ctx, pt)
+    page.evaluate("() => window.__tour.save()")
+    page.reload()
+    page.wait_for_function("() => window.__tour")
+    tap(page, "carry_on")
+    page.wait_for_timeout(300)
+    at(page, ctx, path[k])
+    at(page, ctx, path[k + 1])
+    r = page.evaluate(probe)
+    check(r["along"] and r["along"]["m"] >= out_end and r["road"] and r["i"] == len(tour["stops"]) - 1, f"after a reload on the return leg before New Norfolk, the ring still counts the return leg ({r['along']})")
+    # A gap that lands where both legs share the road: the earlier (outbound) place wins.
+    j = min(range(len(out)), key=lambda j: metres(out[j], stop_pt(tour, 1)))
+    fresh(page)
+    at(page, ctx, out[0])
+    tap(page, "start")
+    page.wait_for_timeout(300)
+    for pt in out[:3]:
+        at(page, ctx, pt)
+    set_visible(page, False)
+    set_visible(page, True)
+    at(page, ctx, out[j])
+    at(page, ctx, out[j + 1])
+    r = page.evaluate(probe)
+    check(r["along"] and abs(r["along"]["m"] - cum[j + 1]) < 300, f"after a gap to New Norfolk on the way out, progress jumps there on the outbound leg ({r['along']}, want ~{cum[j + 1]:.0f})")
+
+
 def drive_checks(browser, url: str, tour: dict, check, failures: list[str]) -> None:
     """Every behaviour check, in one browser context."""
     stops = [s["id"] for s in tour["stops"]]
@@ -498,6 +592,9 @@ def drive_checks(browser, url: str, tour: dict, check, failures: list[str]) -> N
     check(any("song" in s for s in tour["stops"])
           and all(f"Then a song: {s['song']['title']} · {s['song']['artist']}" in rows[s["id"]] for s in tour["stops"] if "song" in s),
           "and each names its song")
+
+    print("Route progress")
+    progress_check(page, ctx, tour, check)
 
     print("Offline")
 

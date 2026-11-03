@@ -21,7 +21,6 @@ const V = {
   installed: false,
 };
 const RING = 2 * Math.PI * 46; // the ring's circumference in its 100-unit viewBox
-const FILL_FROM = 8000; // metres; without route progress the ring fills over the last 8 km
 const ICON = {
   play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>',
   pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h4.5v16H6zM13.5 4H18v16h-4.5z"/></svg>',
@@ -55,15 +54,13 @@ const allSaved = () => withAudio().length > 0 && withAudio().every((s) => S.cach
 const finished = () => !S.current && !S.queue.length && !armed().length;
 const heardCount = () => stops().filter((s) => S.status[s.id] === "played").length;
 
-/** The next story GPS may start, and how far to the edge of its zone (straight line, metres;
- *  null without a fix). Minutes from the latest speed, when moving. */
+/** The next story GPS may start, and how far to the edge of its zone: by road on the route,
+ *  else in a straight line (toStop, in app.js). */
 function nextStory() {
   const i = armed()[0];
   if (i == null) return null;
-  const s = stops()[i];
-  const d = S.fix ? Math.max(0, metres(S.fix, s) - s.radius) : null;
-  const mins = d != null && S.fix.speed > 2 ? d / S.fix.speed / 60 : null;
-  return { i, s, d, mins };
+  const { d, frac, secs, road } = toStop(i);
+  return { i, s: stops()[i], d, frac, mins: secs == null ? null : secs / 60, road };
 }
 
 /** Length of the drive (outbound and return) in metres, and its time in seconds (OSRM's
@@ -366,7 +363,7 @@ function tick() {
   else {
     const n = nextStory();
     if (n && n.d != null) {
-      frac = Math.max(0, Math.min(1, 1 - n.d / FILL_FROM));
+      frac = n.frac;
       const [num, unit] = ringDist(n.d);
       if ($("#dist")) $("#dist").textContent = num;
       if ($("#mins")) $("#mins").textContent = n.mins != null && n.d > 0 ? `${unit} · ${fmtMins(n.mins)}` : unit;
@@ -468,7 +465,7 @@ async function main() {
   audio.addEventListener("play", render);
   audio.addEventListener("pause", render);
   setInterval(tick, 1000);
-  window.__tour = { S, onFix, trigger, startHere, skip, audio, save, render }; // for tests
+  window.__tour = { S, onFix, trigger, startHere, skip, audio, save, render, nextStory }; // for tests
 }
 
 main().catch((err) => {
