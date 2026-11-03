@@ -17,7 +17,7 @@
 // Three classic scripts, loaded in order, no build step: app.js (this file) is the engine:
 // state, persistence, the log, geometry, the queue, audio, the cache, GPS, simulation and the
 // songs' room check. map.js draws the route; view.js draws everything else and wires the page.
-// The engine calls the view's render(), onLog() and toast(); they exist by the
+// The engine calls the view's render(), onLog(), toast() and onBase(); they exist by the
 // time anything runs, because main() (in view.js) starts it all.
 
 const CACHE = "audio-tours";
@@ -66,6 +66,7 @@ const S = {
   wakeLock: null,
   sim: null,
   blocked: false, // the browser refused to start audio; show a "Tap to play" button
+  base: null, // map.json (task 010), once loaded
 };
 const audio = new Audio();
 audio.preload = "auto";
@@ -408,8 +409,9 @@ async function downloadAll() {
       S.cached.add(s.id);
       render();
     }
-    // Also cache the page itself (the service worker caches it too; this is belt and braces).
-    await cache.addAll([location.href, "tour.json"]).catch(() => {});
+    // Also cache the page, tour.json and the base map (the service worker caches them too as they
+    // load; this is belt and braces).
+    await cache.addAll([location.href, "tour.json", ...(S.tour.map ? [S.tour.map] : [])]).catch(() => {});
     toast("Saved: the tour now works with no signal");
   } catch (err) {
     S.saveError = err.message;
@@ -789,4 +791,15 @@ async function loadTour() {
   S.tour.lookahead ||= 2;
   S.path = buildPath(S.tour);
   load();
+}
+
+/** The base map (task 010), fetched after the tour: the map page draws the route without it
+ *  until it comes, or if it can't (offline and never saved). */
+async function loadBase() {
+  if (!S.tour.map) return;
+  try {
+    const r = await fetch(S.tour.map, { cache: "no-cache" });
+    if (r.ok) S.base = await r.json();
+  } catch {}
+  if (S.base) onBase();
 }

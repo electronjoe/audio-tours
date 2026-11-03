@@ -138,7 +138,23 @@ a { color: var(--accent); }
 .p2-bottom .label { margin: 0 0 4px; }
 .p2-bottom .offer { margin-top: 0; }
 .p2-hint { margin: 12px 0 0; color: var(--muted); font-size: 13px; text-align: center; }
+.p2-attr { margin: 6px 0 0; color: var(--muted); font-size: 12px; text-align: right; }
+.p2-attr a { color: inherit; }
 .m { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.m-sea { fill: #0c2635; }
+.m-land { fill: #0d1312; }
+.m-park { fill: #11271d; }
+.m-river { fill: none; stroke: #16394b; stroke-width: 1.5px; }
+.m-road { fill: none; stroke: #222f2c; stroke-linecap: round; stroke-linejoin: round; }
+.m-road.r1 { stroke: #2b3935; stroke-width: 3px; }
+.m-road.r2 { stroke-width: 2px; }
+.m-road.r3 { stroke-width: 1.2px; }
+.m-coast { fill: none; stroke: #1d3a48; stroke-width: 1.5px; }
+.m-place circle { fill: #6f7f7b; }
+.m-place text { fill: #8b9a96; font: 600 12px system-ui, sans-serif; paint-order: stroke; stroke: #0d1312; stroke-width: 4px; stroke-linejoin: round; }
+.m-place.r1 text { fill: #b4c1bd; font-size: 15px; }
+.m-place.r2 text { fill: #a3b1ad; font-size: 13px; }
+.m-places { pointer-events: none; }
 .m path, .m-zone { vector-effect: non-scaling-stroke; }
 .m-edge { fill: none; stroke: #18211f; stroke-width: 11px; stroke-linecap: round; stroke-linejoin: round; }
 .m-route { fill: none; stroke: #34413e; stroke-width: 7px; stroke-linecap: round; stroke-linejoin: round; }
@@ -169,6 +185,7 @@ a { color: var(--accent); }
     justify-content: flex-end; padding: 0 calc(20px + env(safe-area-inset-right)) calc(14px + env(safe-area-inset-bottom)) 40px;
     background: linear-gradient(to left, #050707 72%, rgba(5, 7, 7, 0)); }
   .p2-hint { display: none; }
+  .p2-attr { margin-top: 4px; }
   .p2-bottom .o-why { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 }
 

@@ -30,7 +30,9 @@ points. Checks:
 - the map page: one numbered pin per stop (♪ on a song's), the car and the driven line,
   Whole route shows every pin, a pin's card plays that stop; a story starting, a missed offer
   or arriving brings page one back, a story ending or a song offer doesn't
-- after Download, the tour opens and plays with the network off
+- the base map (map.json) draws under the route with the OpenStreetMap attribution, and
+  its place names show beside the pins (New Norfolk, near stop 2)
+- after Download, the tour opens and plays with the network off, map page and base map too
 
 The final screenshot goes to tours/<tour>/build/player-test.png, or to $PLAYER_TEST_SHOT.
 Then a screenshot pass shoots every state the player shows (SCENES), light and dark, portrait
@@ -97,6 +99,9 @@ SEL: dict[str, str | tuple[str, ...] | None] = {
     "map_song_dismiss": "#map-offer [data-act=dismissSong]",
     "pin_play": "#pin-play",
     "pager": "#pager",
+    "map_base": "#p2 .m-base path",
+    "map_places": "#p2 .m-place",
+    "map_attr": "#map-attr",
 }
 
 
@@ -400,6 +405,14 @@ def map_check(page, ctx, tour: dict, check) -> None:
         return r[0] >= view[0] and r[1] >= view[1] and r[2] <= view[2] and r[3] <= view[3]
 
     check(on_screen(sel("map_car")) and on_screen(f"{sel('map_pins')}[data-id={ids[1]}]"), "following: the car and the next story are both on screen")
+    if tour.get("map"):
+        base = page.eval_on_selector_all(sel("map_base"), "els => els.filter(e => (e.getAttribute('d') || '').length > 100).length")
+        attr = page.locator(sel("map_attr"))
+        check(base >= 3 and attr.is_visible() and "OpenStreetMap" in attr.inner_text()
+              and attr.locator("a").get_attribute("href") == "https://www.openstreetmap.org/copyright",
+              f"the base map is drawn ({base} layers) with the OpenStreetMap attribution")
+        shown = page.eval_on_selector_all(sel("map_places"), "els => els.filter(e => e.getAttribute('display') === 'inline').map(e => e.textContent)")
+        check(TOUR != "hobart" or "New Norfolk" in shown, f"place names show beside the pins ({shown})")
     tap(page, "map_whole")
     page.wait_for_timeout(1500)
     check("Follow car" in page.inner_text(sel("map_whole")) and all(on_screen(f"{sel('map_pins')}[data-id={i}]") for i in ids),
@@ -712,6 +725,11 @@ def drive_checks(browser, url: str, tour: dict, check, failures: list[str]) -> N
     page.wait_for_timeout(800)
     st = state(page)
     check(st["current"] == stops[1] and not st["paused"], f"offline: stop plays from the cache ({st['current']}, paused={st['paused']})")
+    if tour.get("map"):
+        tap(page, "open_map")
+        page.wait_for_timeout(900)
+        base = page.eval_on_selector_all(sel("map_base"), "els => els.filter(e => (e.getAttribute('d') || '').length > 100).length")
+        check(base >= 3 and page.is_visible(sel("map_attr")), "offline: the map page draws the base map, with the attribution")
     ctx.set_offline(False)
     shot = os.environ.get("PLAYER_TEST_SHOT") or ROOT / "tours" / TOUR / "build" / "player-test.png"
     page.screenshot(path=str(shot), full_page=True)

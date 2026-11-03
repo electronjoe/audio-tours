@@ -1,6 +1,6 @@
 # 010: A base map for each tour, drawn from OpenStreetMap at publish time
 
-Status: doing (on branch `player-redesign`: `tour map` built and run for Hobart; the player side is task 009 steps 5–6) · Priority: medium · Raised: 2026-11-03 (player redesign demos)
+Status: doing (on branch `player-redesign`: built, and drawn by the player (task 009 step 6); needs a look on a phone) · Priority: medium · Raised: 2026-11-03 (player redesign demos)
 
 ## Why
 
@@ -137,5 +137,7 @@ answer trimmed to the waterfront and the Derwent, and on small hand-built areas.
 - `tour map` also adds `"map": "map.json"` to an already published `tour.json` (Hobart's was);
   publish adds it whenever the file exists.
 - `README.md` notes the ODbL for `site/*/map.json`; `docs/process/1-route.md` has the step.
-- Left for task 009: drawing it (step 6), the attribution, offline, and the last acceptance box.
+- **Drawn** by task 009 step 6 (see its "As built"): under the route, with the attribution,
+  saved by Save, and checked offline by `player_drive.py`. The last acceptance box waits for a
+  look on a phone, online and offline (task 009 step 9).
 

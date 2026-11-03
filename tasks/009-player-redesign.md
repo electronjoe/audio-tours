@@ -1,6 +1,6 @@
 # 009: Player redesign: the glance screen and a map page (A.3)
 
-Status: doing (on branch `player-redesign`, steps 1–5 of 9 done) · Priority: high · Raised: 2026-11-03 (player redesign demos)
+Status: doing (on branch `player-redesign`, steps 1–6 of 9 done) · Priority: high · Raised: 2026-11-03 (player redesign demos)
 
 ## Why
 
@@ -211,7 +211,8 @@ fails if the committed Hobart page doesn't match `tour.html`.
       from steps 3–5.
 - [x] `uv run pytest` passes (`test_publish`, `test_navigate`).
 - [ ] The screenshot set for step 1 is reviewed in light and dark.
-- [ ] Works offline after Save, including the map page.
+- [x] Works offline after Save, including the map page (headless: `player_drive.py`'s offline
+      check opens the map page and finds the base map; on a phone, step 9).
 - [ ] Road-tested on an Android phone; findings added here.
 
 ## Decisions (2026-11-03)
@@ -326,13 +327,34 @@ pixel but for clocks and distances.
   `SEL` has `map_whole` and `map_pin` (from following: Whole route, then the pin), so the
   map-whole and map-pin scenes are shot. 88 checks, 0 failures.
 
+**Step 6.** The base map under the route (`baseSVG`, `placeLabels` in `map.js`; `loadBase` in
+`app.js`).
+- `loadBase()` fetches `tour.json`'s `map` after the first render; the map page draws the
+  route alone until it arrives (or if it never does), then rebuilds on map.json's origin.
+  Save's `cache.addAll` now includes it, beside the page and `tour.json`; the service worker's
+  network-first rule caches it as it loads anyway.
+- Layers, bottom up: sea (the area's rectangle, when map.json has `land`), land, parks, water
+  (sea-coloured, so the Derwent runs on from the estuary), rivers, roads by rank (3, 2 and
+  1.2 px), the coastline line if it couldn't be closed, a 3 km fade to the page's colour at
+  the area's edge (portrait shows well beyond it on the whole route), then the route.
+- Place names at a fixed size with a dot, biggest places first: right of the dot, else left,
+  above or below; left out if every spot would cover a pin or another name, or leave the part
+  of the screen the buttons and card leave free. New Norfolk (under pins 2 and 8) shows when
+  following near it; on the whole route the pins win.
+- Colours a little brighter than the demo's (sea `#0c2635`, parks `#11271d`): the demo's
+  made-up shapes were big and simple, and real coast and parks at its contrast barely read.
+- "© OpenStreetMap contributors", linking to openstreetmap.org/copyright, under the card while
+  the base map is drawn.
+- Tests: base map drawn with the attribution and its link, New Norfolk's label shown when
+  following there, and offline after Save the map page still draws it. 91 checks, 0 failures.
+
 ## Progress (2026-11-03)
 
 Work is on the branch `player-redesign`, not yet merged; the branch's copy of this file has the
 full "As built" notes. Done there: step 1 (selector table and screenshot pass in
 `tests/player_drive.py`), step 2 (`app.js` split into `app.js`, `map.js`, `view.js`), step 3
 (setup, car screen, offers, All stories, landscape, the tour list), step 4 (route progress for
-the ring), task 010's `tour map` (Hobart's `map.json`), step 5 (the map page). `uv run pytest`
-110 passed; `player_drive.py hobart` 88 checks, 0 failures. Next: steps 6–8. Step 9 (road test)
-is Scott's.
+the ring), task 010's `tour map` (Hobart's `map.json`), step 5 (the map page), step 6 (the base map
+under it). `uv run pytest` 110 passed; `player_drive.py hobart` 91 checks, 0 failures. Next:
+steps 7–8. Step 9 (road test) is Scott's.
 

@@ -4,6 +4,10 @@
 // Pins, the car and line widths keep their size on screen at any zoom. The camera follows the car
 // and the story it's heading for (or playing), or shows the whole route.
 //
+// Under the route goes the tour's base map, map.json from `tour map` (task 010), when it has one:
+// land and sea, water, parks, rivers, main roads by rank, and town names at a fixed size, those
+// that would cover a pin or each other left out. The attribution shows while it's drawn.
+//
 // Nothing runs while page one is showing: view.js calls drawMap() only while the map page is on
 // screen, and the camera's glide stops when the page goes.
 // Loaded after app.js, whose state (S) and helpers it uses.
@@ -20,6 +24,7 @@ const MAP = {
 };
 const FOLLOW_MIN = 4000; // metres: the narrowest view across the free part of the screen when following
 const PIN_GAP = 30; // px: pins nearer than this on screen are spread sideways
+const EDGE_FADE = 3000; // metres: the base map fades out this far inside its edge
 const M_PER_DEG = 111320;
 
 /** [x, y] in metres from the origin, y south, as map.json. */
@@ -37,22 +42,61 @@ function routeOrigin() {
 
 const pathD = (pts) => (pts.length ? "M" + pts.map(([x, y]) => `${x.toFixed(0)} ${y.toFixed(0)}`).join("L") : "");
 
+/** SVG path data from map.json's flat arrays: rings closed, lines open. */
+function flatD(list, closed) {
+  let d = "";
+  for (const a of list) {
+    d += `M${a[0]} ${a[1]}`;
+    for (let k = 2; k < a.length; k += 2) d += `L${a[k]} ${a[k + 1]}`;
+    if (closed) d += "Z";
+  }
+  return d;
+}
+
+/** The base map's SVG: sea (when the coastline crosses the area) and land, parks, water,
+ *  rivers, roads, the coastline as a line if it couldn't be closed, a fade at its edge, and the
+ *  place names (placed in placeMap). */
+function baseSVG(b) {
+  const [x0, y0, x1, y1] = b.extent, w = x1 - x0, h = y1 - y0, f = EDGE_FADE;
+  const fade = [["l", x0, y0, f, h], ["r", x1 - f, y0, f, h], ["t", x0, y0, w, f], ["b", x0, y1 - f, w, f]]
+    .map(([k, x, y, fw, fh]) => `<rect fill="url(#m-fade-${k})" x="${x}" y="${y}" width="${fw}" height="${fh}"/>`).join("");
+  const grad = (k, x1_, y1_, x2_, y2_) => `<linearGradient id="m-fade-${k}" x1="${x1_}" y1="${y1_}" x2="${x2_}" y2="${y2_}">
+    <stop offset="0" stop-color="#0d1312"/><stop offset="1" stop-color="#0d1312" stop-opacity="0"/></linearGradient>`;
+  const roads = [1, 2, 3].map((r) => `<path class="m-road r${r}" d="${flatD((b.roads || []).filter((x) => x.rank === r).map((x) => x.pts), false)}"/>`).join("");
+  return `<defs>${grad("l", 0, 0, 1, 0)}${grad("r", 1, 0, 0, 0)}${grad("t", 0, 0, 0, 1)}${grad("b", 0, 1, 0, 0)}</defs>
+    ${b.land ? `<rect class="m-sea" x="${x0}" y="${y0}" width="${w}" height="${h}"/><path class="m-land" d="${flatD(b.land, true)}"/>` : ""}
+    <path class="m-park" d="${flatD(b.green || [], true)}"/><path class="m-sea" d="${flatD(b.water || [], true)}"/>
+    <path class="m-river" d="${flatD(b.rivers || [], false)}"/>${roads}<path class="m-coast" d="${flatD(b.coast || [], false)}"/>
+    ${fade}`;
+}
+
 function buildMap() {
-  MAP.origin = routeOrigin();
+  const b = S.base;
+  MAP.origin = b ? b.origin : routeOrigin();
   MAP.pins = stops().map((s) => mxy(s.lat, s.lon));
   const route = (S.path?.pts || []).map((p) => mxy(p.lat, p.lon));
   const d = pathD(route);
   const zones = stops().map((s, i) => `<circle class="m-zone" data-i="${i}" cx="${MAP.pins[i][0].toFixed(0)}" cy="${MAP.pins[i][1].toFixed(0)}" r="${s.radius}"/>`).join("");
   const pins = stops().map((s, i) => `<g class="m-pin" data-act="pin" data-i="${i}" data-id="${s.id}" role="button" aria-label="Story ${s.n}: ${esc(s.title)}">
       <circle class="m-hit" r="24"/><circle class="m-pdot" r="13"/><text class="m-n" dy=".35em">${s.n}</text>${s.song ? `<g class="m-song" transform="translate(12 -12)"><circle r="8.5"/><text dy=".35em">♪</text></g>` : ""}</g>`).join("");
+  const places = (b?.places || []).map((p) => `<g class="m-place r${p.rank}"><circle r="2.5"/><text x="7" dy=".35em">${esc(p.name)}</text></g>`).join("");
   $("#p2map").innerHTML = `<svg class="m" id="map" role="img" aria-label="Map of the route and its stories" preserveAspectRatio="xMidYMid meet">
-    <g class="m-base"></g><g class="m-zones">${zones}</g>
-    <path class="m-edge" d="${d}"/><path class="m-route" d="${d}"/><path class="m-done" d=""/>
+    <g class="m-base">${b ? baseSVG(b) : ""}</g><g class="m-zones">${zones}</g>
+    <path class="m-edge" d="${d}"/><path class="m-route" d="${d}"/><path class="m-done" d=""/><g class="m-places">${places}</g>
     <g class="m-pins">${pins}</g>
     <g class="m-car" display="none"><circle class="m-halo" r="20"/><circle class="m-dot" r="10"/><path class="m-arrow" d="M0 -5 L4 4 L0 2 L-4 4 Z"/></g>
   </svg>`;
   MAP.whole = bounds([...route, ...MAP.pins.map(([x, y], i) => [x, y, stops()[i].radius])]);
+  MAP.places = b?.places || [];
+  MAP.labels = null; // label sizes in px, measured on the first frame
   MAP.built = true;
+  $("#map-attr").hidden = !b;
+}
+
+/** map.json has come (app.js loadBase): draw it under the route. */
+function onBase() {
+  MAP.built = false;
+  if (V.page === 1) drawMap();
 }
 
 /** [minx, miny, maxx, maxy] of points [x, y, r?], each grown by its r. */
@@ -110,6 +154,7 @@ function camGoal(w, h) {
   }
   s = fit(B);
   if (B !== wholeB) s = Math.min(wholeS, Math.max(s, FOLLOW_MIN / fw));
+  MAP.free = F;
   return { cx: (B[0] + B[2]) / 2, cy: (B[1] + B[3]) / 2, s, fx: (F.l + F.r) / 2, fy: (F.t + F.b) / 2 };
 }
 
@@ -174,10 +219,37 @@ function placeMap() {
     placed.push([sx + dx, sy]);
     g.setAttribute("transform", `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(4)}) translate(${dx} 0)`);
   });
+  placeLabels(svg, s, x0, y0, placed);
   const car = svg.querySelector(".m-car"), c = MAP.car;
   car.setAttribute("display", c ? "inline" : "none");
   if (c) car.setAttribute("transform", `translate(${c.x.toFixed(1)} ${c.y.toFixed(1)}) scale(${s.toFixed(4)})${c.ang == null ? "" : ` rotate(${c.ang.toFixed(0)})`}`);
   svg.querySelector(".m-arrow").setAttribute("display", c && c.ang != null ? "inline" : "none");
+}
+
+/** Place names at a fixed size on screen, biggest places first, each to the right of its dot,
+ *  else left, above or below; one that would cover a pin or another name, or not fit in the free
+ *  part of the screen, is left out. `pins` are the pins' screen positions. */
+function placeLabels(svg, s, x0, y0, pins) {
+  const groups = svg.querySelectorAll(".m-place");
+  if (!groups.length) return;
+  if (!MAP.labels) MAP.labels = [...groups].map((g) => { const b = g.querySelector("text").getBBox(); return [b.width, b.height]; });
+  const F = MAP.free, taken = pins.map(([x, y]) => [x - 18, y - 18, x + 18, y + 18]);
+  const free = (r) => r[0] >= F.l && r[2] <= F.r && r[1] >= F.t && r[3] <= F.b && !taken.some((t) => r[0] < t[2] && r[2] > t[0] && r[1] < t[3] && r[3] > t[1]);
+  groups.forEach((g, i) => {
+    const p = MAP.places[i], [w, h] = MAP.labels[i], sx = (p.at[0] - x0) / s, sy = (p.at[1] - y0) / s;
+    const spots = [ // [text x, y, anchor, the label's box relative to the dot]
+      [7, 0, "start", [3, -h / 2, w + 11, h / 2]], [-7, 0, "end", [-w - 11, -h / 2, -3, h / 2]],
+      [0, -h * 0.75, "middle", [-w / 2 - 4, -h * 1.3, w / 2 + 4, -3]], [0, h * 0.85, "middle", [-w / 2 - 4, 3, w / 2 + 4, h * 1.4]]];
+    const spot = spots.find(([, , , b]) => free([sx + b[0], sy + b[1], sx + b[2], sy + b[3]]));
+    g.setAttribute("display", spot ? "inline" : "none");
+    if (!spot) return;
+    const [tx, ty, anchor, b] = spot, t = g.querySelector("text");
+    taken.push([sx + b[0], sy + b[1], sx + b[2], sy + b[3]]);
+    t.setAttribute("x", tx);
+    t.setAttribute("y", ty.toFixed(1));
+    t.setAttribute("text-anchor", anchor);
+    g.setAttribute("transform", `translate(${p.at[0]} ${p.at[1]}) scale(${s.toFixed(4)})`);
+  });
 }
 
 /** The map page went away: stop the glide. */

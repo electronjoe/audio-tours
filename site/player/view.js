@@ -510,6 +510,7 @@ async function main() {
   }).catch(() => {});
   render();
   checkCached();
+  loadBase();
   wireSongs();
   audio.addEventListener("timeupdate", tick);
   audio.addEventListener("play", render);
