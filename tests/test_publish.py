@@ -71,17 +71,26 @@ def test_second_tour_needs_no_hand_written_files(tmp_path):
     assert "audio" not in data["stops"][0]
 
     page = (site / "demo" / "index.html").read_text()
-    assert "<title>Demo Walk</title>" in page and '<h1 id="title">Demo Walk</h1>' in page
-    assert '<script src="../player/app.js"></script>' in page and "${" not in page
+    assert "<title>Demo Walk</title>" in page and "${" not in page
+    assert all(f'<script src="../player/{js}"></script>' in page for js in ("app.js", "map.js", "view.js"))
     manifest = json.loads((site / "demo" / "manifest.webmanifest").read_text())
     assert manifest["name"] == manifest["short_name"] == "Demo Walk"
     assert manifest["theme_color"] == publish.DEFAULT_THEME
 
     index = (site / "index.html").read_text()
-    cards = re.findall(r'<a class="card" href="([^"]+)">', index)
-    assert cards == ["demo/", "hobart/"]  # sorted by title
-    assert "Walk · 2 stops</div>" in index
-    assert re.search(r"Drive · 8 stops · \d+ min", index)
+    rows = re.findall(r'<a class="row" href="([^"]+)">', index)
+    assert rows == ["demo/", "hobart/"]  # sorted by title
+    assert "<small>Walk · 2 stories</small>" in index  # no route: no length or time
+    assert re.search(r"<small>Drive · 8 stories · \d+ km · about (\d+ h)?( ?\d+ min)?</small>", index)
+
+
+def test_trip_length_and_time():
+    route = {"outbound": [[-42.0, 147.0], [-42.0, 147.1]], "return": [[-42.0, 147.1], [-42.0, 147.0]]}
+    m, secs = publish.trip(route)
+    assert 16400 < m < 16600 and secs == pytest.approx(m / (80 / 3.6))  # 80 km/h without OSRM times
+    route["seconds"] = {"outbound": [0, 600], "return": [0, 660]}
+    assert publish.trip(route)[1] == 1260
+    assert [publish.about(s) for s in (60, 1260, 3600, 6600)] == ["about 5 min", "about 20 min", "about 1 h", "about 1 h 50 min"]
 
 
 def test_titles_are_escaped(tmp_path):

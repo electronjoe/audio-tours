@@ -209,7 +209,7 @@ fails if the committed Hobart page doesn't match `tour.html`.
 - [ ] Every feature in the table above is reachable in the new UI.
 - [ ] `tests/player_drive.py hobart` passes with every check it has today, plus the new ones
       from steps 3–5.
-- [ ] `uv run pytest` passes (`test_publish`, `test_navigate`).
+- [x] `uv run pytest` passes (`test_publish`, `test_navigate`).
 - [ ] The screenshot set for step 1 is reviewed in light and dark.
 - [ ] Works offline after Save, including the map page.
 - [ ] Road-tested on an Android phone; findings added here.
@@ -235,3 +235,39 @@ Settled before any code; each is written into the sections above.
 - **Play it now: one plain button at any distance; `NEAR` goes.** Rejected: keeping the 2 km
   emphasis (its reason, sitting beside Start, is gone), and hiding it when far (the dock would
   change shape while driving).
+
+## As built
+
+**Step 1 (2026-11-03).** `tests/player_drive.py` reaches the UI only through `SEL`, one table:
+a tuple is a sequence of taps, `"sheet"` opens All stories unless it's open, `None` marks
+something the UI lacks (its screenshot is skipped). `text_of()` reads an element after the taps
+that lead to it. The screenshot pass (`SCENES`) shoots 18 states into
+`tours/<tour>/build/shots/`: setup light and dark, the driving states dark in portrait (412×860)
+and landscape (860×390). `--no-shots` and `--shots-only` pick a part. `fresh()` stops the old
+page writing to localStorage before it clears it: a story ending between the clear and the
+reload used to leave fresh progress, which now opens the car screen instead of setup.
+
+**Step 2.** `app.js` (engine, with `loadTour()`), `map.js` (the old route sketch) and `view.js`
+(everything drawn, `main()`), loaded in that order. The screenshots matched step 1's pixel for
+pixel but for clocks and distances.
+
+**Step 3.** Setup, the car screen, the offers, All stories, landscape and the tour list.
+- Engine: `declineResume`, `carryOn`, `dismissMissed`, `dismissSong`, `unplay`, `resetTour`
+  (logged as `resume-declined`, `dismiss`, `song-dismiss`, `reset`); `downloadAll` reports
+  through `S.saving` and `S.saveError` instead of a button; `S.savedAt` decides setup or car
+  screen; `NEAR` is gone (note added to task 001).
+- The view keeps changing numbers (distance, ring, time left, row distances) out of the HTML and
+  updates them in place every second, so a GPS fix never rebuilds a button under a finger.
+- Choices the plan left open: while a story plays the dock is **Skip story** (the plan's
+  "Queue it next while one plays" is in All stories → Queue next); with nothing for the left
+  button (a Resume after a reload, a blocked start) the dock is All stories alone. The trip time
+  under the title uses `route.seconds`, else 80 km/h like `plan-check` (Hobart's route has no
+  `seconds`: "144 km · about 1 h 50 min"). The tour list uses the same figures (`publish.trip`).
+- The map page exists from step 3 with the old route sketch, so the route stays reachable;
+  step 5 replaces it.
+- Test change beyond selectors: the old reload check tapped Start and then Resume. The settled
+  decision removes Start from that screen, so the check is now "the reload opens the car
+  screen; nothing plays or starts until a tap names it; Resume plays the story in one tap".
+  "Start plays nothing" is still checked after the first Start, and after Continue and Start
+  from the beginning.
+

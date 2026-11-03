@@ -11,65 +11,34 @@
 <link rel="stylesheet" href="../player/style.css">
 </head>
 <body>
-<header>
-  <h1 id="title">Hobart to Russell Falls</h1>
-  <div id="status" class="status"></div>
-</header>
-<main>
-  <button id="start" class="big">Start tour</button>
-  <section id="stale" class="card" hidden>
-    <div class="sub">This phone has progress on this tour from more than 8 hours ago.</div>
-    <button id="restart" class="big">Start from the beginning</button>
-    <button id="continue" class="wide">Continue</button>
-  </section>
-  <section id="dl-card" class="card dl">
-    <div class="sub">Download the audio while you have signal, so the tour works offline.</div>
-    <button id="download" class="wide">Download tour for offline</button>
-  </section>
-  <section id="now" class="card idle">
-    <div class="label">Now playing</div>
-    <div id="now-title" class="title">Tour not started</div>
-    <div id="now-sub" class="sub"></div>
-    <div class="bar"><div id="now-bar"></div></div>
-    <div id="now-offers"></div>
-    <button id="tap-play" class="primary wide" hidden>▶ Tap to play</button>
-    <div id="now-controls" class="controls" hidden>
-      <button id="pause">Pause</button>
-      <button id="skip">Skip</button>
-    </div>
-  </section>
-  <section id="next" class="card"></section>
-  <h2>Stops in order</h2>
-  <div id="stops"></div>
-  <p class="hint">Tap a stop to play it now or open it in Google Maps.</p>
-  <details id="more" class="card">
-    <summary>More</summary>
-    <p class="help">Keep this page open on screen while you drive; navigation can run in the
-      background. Stops play in order and never interrupt each other: if two trigger close
-      together, the second waits. <b>Start here</b> plays a stop now and continues the sequence from it.
-      If you switch to another app or the screen locks, the phone stops sending GPS to this page;
-      a stop you pass meanwhile is offered when you come back.</p>
-    <details id="map-box">
-      <summary>Route sketch</summary>
-      <svg id="map" role="img" aria-label="Route sketch with stops"></svg>
-    </details>
-    <details>
-      <summary>Plain audio files (if the player fails)</summary>
-      <p class="help">Each opens in the phone's own audio player.</p>
-      <ol id="files" class="files"></ol>
-    </details>
-    <details id="log-box">
-      <summary>Event log</summary>
-      <p class="help">Why each stop started, newest first. It stays on this phone.</p>
-      <ol id="log" class="log"></ol>
-    </details>
-    <section class="tools">
-      <button id="sim" hidden>Simulate drive</button>
-      <button id="reset">Reset tour</button>
+<section id="setup" hidden></section>
+<section id="drive" hidden>
+  <div class="pager" id="pager">
+    <section class="page glance" id="p1"></section>
+    <section class="page map-page" id="p2">
+      <div class="p2-map" id="p2map"><svg id="map" role="img" aria-label="Route map with stops"></svg></div>
+      <div class="p2-top"><button class="pg-btn" id="to-story" data-act="toStory">‹ Story</button></div>
     </section>
+  </div>
+  <div class="dots" aria-hidden="true"><span class="on"></span><span></span></div>
+</section>
+<section id="sheet" hidden>
+  <div class="sheet-head"><h2>Stories</h2><button class="x" data-act="closeSheet" aria-label="Close">✕</button></div>
+  <ol class="list" id="stories"></ol>
+  <div class="sheet-more">
+    <button class="o-no" id="log-toggle" data-act="toggleLog">Why did that play?</button>
+    <button class="o-no" id="reset" data-act="reset">Start over</button>
+  </div>
+  <ol id="log" class="log" hidden></ol>
+  <details class="files">
+    <summary>Plain audio files (if the player fails)</summary>
+    <p class="help">Each opens in the phone's own audio player.</p>
+    <ol id="files"></ol>
   </details>
-</main>
-<div id="toast" hidden></div>
+  <p class="help" id="help"></p>
+  <button class="o-no" id="sim" data-act="sim" hidden>Simulate drive</button>
+</section>
+<div id="toast" role="status" hidden></div>
 <script src="../player/app.js"></script>
 <script src="../player/map.js"></script>
 <script src="../player/view.js"></script>

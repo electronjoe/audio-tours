@@ -147,21 +147,43 @@ def write_pages(tour: config.Tour, site_dir: Path = SITE_DIR) -> None:
     print(f"  -> {out.relative_to(site_dir.parent)}/index.html, manifest.webmanifest")
 
 
+FALLBACK_KMH = 80  # trip time without OSRM's seconds, as `tour plan-check` assumes
+
+
+def trip(route: dict) -> tuple[float, float]:
+    """The drive's length in metres (outbound then return) and its time in seconds: OSRM's
+    ``seconds`` when every leg has them, else FALLBACK_KMH. The player's setup screen agrees."""
+    from .route import metres
+
+    legs = [route.get(k) or [] for k in ("outbound", "return")]
+    m = sum(metres(tuple(a), tuple(b)) for leg in legs for a, b in zip(leg, leg[1:]))
+    times = route.get("seconds") or {}
+    timed = times and all(times.values())
+    return m, sum(v[-1] for v in times.values()) if timed else m / (FALLBACK_KMH / 3.6)
+
+
+def about(seconds: float) -> str:
+    """"about 1 h 50 min", to the nearest 5 minutes."""
+    mins = max(5, round(seconds / 300) * 5)
+    h, m = divmod(mins, 60)
+    return "about " + (f"{h} h" + (f" {m} min" if m else "") if h else f"{m} min")
+
+
 def tour_card(slug: str, data: dict) -> str:
-    """One entry in the tour list: title, then mode, stop count and total minutes."""
+    """One row in the tour list: the title, then mode, story count, length and driving time."""
     stops = data.get("stops", [])
-    facts = [data.get("mode", "drive").capitalize(), f"{len(stops)} stop{'s' if len(stops) != 1 else ''}"]
-    seconds = sum(s.get("duration", 0) for s in stops)
-    if seconds:
-        facts.append(f"{round(seconds / 60)} min")
-    return (f'<a class="card" href="{html.escape(slug)}/"><div class="title">{html.escape(data.get("title", slug))}'
-            f'</div><div class="sub">{" · ".join(facts)}</div></a>')
+    facts = [data.get("mode", "drive").capitalize(), f"{len(stops)} stor{'y' if len(stops) == 1 else 'ies'}"]
+    metres, seconds = trip(data.get("route", {}))
+    if metres:
+        facts += [f"{round(metres / 1000)} km", about(seconds)]
+    return (f'<li><a class="row" href="{html.escape(slug)}/"><b>{html.escape(data.get("title", slug))}</b>'
+            f'<small>{" · ".join(facts)}</small></a></li>')
 
 
 def write_index(site_dir: Path = SITE_DIR) -> None:
     tours = [(p.parent.name, _read_json(p)) for p in published(site_dir)]
     tours.sort(key=lambda t: (t[1].get("title", t[0]).lower(), t[0]))
-    cards = "\n".join(tour_card(slug, data) for slug, data in tours) or "<p>No tours published yet.</p>"
+    cards = "\n".join(tour_card(slug, data) for slug, data in tours) or "<li>No tours published yet.</li>"
     (site_dir / "index.html").write_text(_template("home.html").substitute(tours=cards))
     print(f"  -> {(site_dir / 'index.html').relative_to(site_dir.parent)} ({len(tours)} tours)")
 

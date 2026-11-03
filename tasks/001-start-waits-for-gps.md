@@ -93,7 +93,13 @@ catch-up from 006 landed in the same change, because both are about which fix ma
   `catch-up`), `missed` (cause `catch-up`, with the jump), `ignored` (`coarse-ignored`,
   `settling`, `inaccurate`; at most once a minute per stop, and only for a fix inside an armed
   zone), `back` (gap length, jump, accuracy), `start` and `reset`.
-- **Play now** on the Next stop card is green only within 2 km of the zone.
+- **Play now** on the Next stop card is green only within 2 km of the zone. *Removed by task
+  009 (2026-11-03):* the redesign puts Start on the setup screen and Play it now on the car
+  screen, never together, so the emphasis lost its reason. Play it now is one plain button at
+  any distance; an early tap is recoverable (Mark unplayed, or Play now on arrival). The
+  `NEAR` constant is gone. The rule this task set, that no button plays anything its label
+  doesn't name, still holds: after a reload the car screen's ring says **Resume N** or
+  **Carry on**, and Carry on (like Start) plays nothing.
 - `tests/player_drive.py`: the reload check expects Resume. New checks cover Start playing
   nothing, stale progress (both buttons), a coarse fix ignored and a precise one triggering,
   the event log (data and the More panel), and the hidden gap from 006. The screenshot path can

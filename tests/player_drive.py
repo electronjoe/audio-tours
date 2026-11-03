@@ -51,30 +51,36 @@ SECONDS_PER_POINT = 300 / 22
 
 
 # Every selector the test uses, in one place, so a UI change edits only this table (task 009).
-# A tuple is a sequence of taps; "scroll:<selector>" scrolls it into view instead of tapping;
-# None means this UI has no such thing (a screenshot that needs it is skipped). `{id}` is a
-# stop id. "now" is the region holding what plays, its offers and the song card.
+# A tuple is a sequence of taps; "sheet" opens All stories unless it's open; "scroll:<selector>"
+# scrolls it into view instead of tapping; None means this UI has no such thing (a screenshot
+# that needs it is skipped). `{id}` is a stop id. "now" is the region holding what plays, its
+# offers and the song card.
 SEL: dict[str, str | tuple[str, ...] | None] = {
+    "setup": "#setup",
+    "car": "#p1",
     "start": "#start",
-    "resume": "#resume",
-    "carry_on": None,
+    "resume": "[data-act=resume]",  # the ring after a reload, or the offer after Continue
+    "carry_on": "#carry-on",
     "continue": "#continue",
     "restart": "#restart",
-    "now": "#now",
-    "song_play": "#now a.song-play",
-    "next": "#next",
-    "next_now": "#next button.next-now",
-    "status": "#status",
+    "now": "#p1",
+    "song_play": "#p1 a.song-play",
+    "dismiss_missed": "#offer [data-act=dismissMissed]",
+    "dismiss_song": "#offer [data-act=dismissSong]",
+    "next": ("sheet", "#stories .row.st-armed"),
+    "next_now": ("sheet", "#stories .row.st-armed .row-main", "#stories .row.st-armed [data-act=queue]"),
+    "status": "#p1 .top",
     "download": "#download",
-    "saved": "#dl-card[hidden]",  # in the page once every stop's audio is cached
-    "nav_links": "details.stop a.nav",
-    "open_stories": "scroll:#stops",
-    "open_stop": "details.stop[data-id={id}] summary",
-    "stop_here": "details.stop[data-id={id}] button.here",
-    "stop_song_link": "details.stop[data-id={id}] a.song-link",
-    "open_log": ("#more > summary", "#log-box > summary"),
+    "saved": "#check-save.done",  # in the page once every stop's audio is cached
+    "nav_links": "#stories a.nav",
+    "open_stories": "[data-act=openSheet]:visible",
+    "story_row": "#stories .row[data-id={id}]",
+    "open_stop": ("sheet", "#stories .row[data-id={id}] .row-main"),
+    "stop_here": "#stories .row[data-id={id}] [data-act=playHere]",
+    "stop_song_link": "#stories .row[data-id={id}] a.song-link",
+    "open_log": ("sheet", "#log-toggle"),
     "log": "#log",
-    "open_map": ("#more > summary", "#map-box > summary", "scroll:#map"),
+    "open_map": "#to-map",
     "map_whole": None,
     "map_pin": None,
 }
@@ -88,14 +94,29 @@ def sel(name: str, **kw) -> str:
     return s.removeprefix("scroll:").format(**kw)
 
 
-def tap(page, name: str, **kw) -> None:
-    s = SEL[name]
-    assert s is not None, f"this UI has no {name}"
-    for one in s if isinstance(s, tuple) else (s,):
-        if one.startswith("scroll:"):
+def _steps(page, steps, **kw) -> None:
+    for one in steps:
+        if one == "sheet":
+            if page.is_hidden("#sheet"):
+                tap(page, "open_stories")
+        elif one.startswith("scroll:"):
             page.locator(one.removeprefix("scroll:").format(**kw)).scroll_into_view_if_needed()
         else:
             page.click(one.format(**kw))
+
+
+def tap(page, name: str, **kw) -> None:
+    s = SEL[name]
+    assert s is not None, f"this UI has no {name}"
+    _steps(page, s if isinstance(s, tuple) else (s,), **kw)
+
+
+def text_of(page, name: str, **kw) -> str:
+    """The text of `name`, after the taps that lead to it."""
+    s = SEL[name]
+    if isinstance(s, tuple):
+        _steps(page, s[:-1], **kw)
+    return page.inner_text(sel(name, **kw))
 
 
 def has(*names: str) -> bool:
@@ -145,8 +166,9 @@ def metres(a: tuple[float, float], b: tuple[float, float]) -> float:
 
 
 def fresh(page) -> None:
-    """A first visit: no saved progress, no log."""
-    page.evaluate("() => localStorage.clear()")
+    """A first visit: no saved progress, no log. The old page may still save (a story ending)
+    before the reload lands, and fresh progress would open the car screen: stop it writing first."""
+    page.evaluate("() => { Storage.prototype.setItem = () => {}; localStorage.clear(); }")
     page.reload()
     page.wait_for_function("() => window.__tour")
     page.evaluate("() => window.scrollTo(0, 0)")  # Chrome restores the last scroll position on reload
@@ -264,6 +286,9 @@ def drive_checks(browser, url: str, tour: dict, check, failures: list[str]) -> N
     check_nav_links(page, tour, check)
     tap(page, "start")
     page.wait_for_timeout(500)
+    st = state(page)
+    check(st["started"] and st["current"] is None and not st["queue"], f"Start plays nothing (current={st['current']})")
+    check(page.is_visible(sel("car")) and not page.is_visible(sel("setup")), "Start shows the car screen")
 
     print("Drive: real GPS path via the browser's geolocation")
     started_at: dict[str, int] = {}
@@ -295,15 +320,13 @@ def drive_checks(browser, url: str, tour: dict, check, failures: list[str]) -> N
                     page.wait_for_function("() => window.__tour")
                     resumed = state(page)
                     check(resumed["resume"][:1] == [cur] and not resumed["queue"], f"after a reload mid-{cur}, it is offered, not queued ({resumed['resume']})")
+                    check(page.is_visible(sel("car")) and not page.is_visible(sel("setup")), "the reload opens the car screen, not setup")
+                    check(not resumed["started"] and resumed["current"] is None, "nothing plays (or starts) until a tap names it")
                     check(page.is_visible(sel("resume")) and "Resume" in page.inner_text(sel("resume")), "a Resume button is offered")
-                    tap(page, "start")
-                    page.wait_for_timeout(500)
-                    st = state(page)
-                    check(st["started"] and st["current"] is None and not st["queue"], f"Start plays nothing (current={st['current']})")
                     tap(page, "resume")
                     page.wait_for_timeout(500)
                     st = state(page)
-                    check(st["current"] == cur and not st["paused"], f"Resume plays {cur}")
+                    check(st["current"] == cur and not st["paused"] and st["started"], f"Resume plays {cur} in one tap, and starts the tour")
                     check(logged(st, "play", stops.index(cur) + 1, "resume"), "event log: started by Resume")
                     started_at[cur] = k
                     continue
@@ -343,7 +366,7 @@ def drive_checks(browser, url: str, tour: dict, check, failures: list[str]) -> N
     st = state(page)
     check(st["current"] == stops[4], f"Start here on {stops[4]} plays it now (current={st['current']})")
     check(st["status"].get(stops[0]) == "skipped" and st["cursor"] == 5, f"stops before it skipped, cursor after it ({st['cursor']})")
-    next_title = page.inner_text(sel("next"))
+    next_title = text_of(page, "next")
     check(tour["stops"][5]["title"] in next_title, "the next story shown is the following stop")
     tap(page, "next_now")
     page.wait_for_timeout(200)
@@ -435,7 +458,49 @@ def drive_checks(browser, url: str, tour: dict, check, failures: list[str]) -> N
     print("Song")
     song_check(page, ctx, tour, check)
 
+    print("Carry on without it")
+    fresh(page)
+    tap(page, "start")
+    page.wait_for_timeout(300)
+    at(page, ctx, stop_pt(tour, 0))
+    page.wait_for_function("() => window.__tour.S.current", timeout=5000)
+    page.reload()
+    page.wait_for_function("() => window.__tour")
+    check(page.is_visible(sel("car")) and page.is_visible(sel("carry_on")), "a reload mid-story offers Carry on without it")
+    tap(page, "carry_on")
+    page.wait_for_timeout(300)
+    st = state(page)
+    check(st["started"] and st["current"] is None and not st["queue"] and not st["resume"], "Carry on without it starts the tour and plays nothing")
+    check(st["status"].get(stops[0]) == "skipped" and logged(st, "resume-declined", 1), f"the cut-off story is skipped, and logged ({st['status']})")
+
+    print("Dismissing offers")
+    sc_offer_missed(page, ctx, tour)
+    tap(page, "dismiss_missed")
+    st = state(page)
+    check(not st["missed"] and st["status"].get(stops[1]) == "skipped" and logged(st, "dismiss", 2),
+          f"Skip on Passed while you were away: the offer goes, the stop stays skipped ({st['status']})")
+    check("passed while you were away" not in text_of(page, "now").lower(), "and the card is gone")
+    try:
+        sc_offer_song(page, ctx, tour)
+        check(TEST_SONG["title"] in text_of(page, "now"), "the song is offered")
+        tap(page, "dismiss_song")
+        st = state(page)
+        check(TEST_SONG["title"] not in text_of(page, "now") and logged(st, "song-dismiss", 1)
+              and not page.evaluate("() => window.__tour.S.song"), "No thanks clears the song offer, logged")
+    finally:
+        OVERRIDE.clear()
+
+    print("Songs in All stories")
+    fresh(page)
+    tap(page, "open_stories")
+    rows = {s["id"]: page.inner_text(sel("story_row", id=s["id"])) for s in tour["stops"]}
+    check(all(("♪" in rows[s["id"]]) == ("song" in s) for s in tour["stops"]), "♪ marks exactly the stories followed by a song")
+    check(any("song" in s for s in tour["stops"])
+          and all(f"Then a song: {s['song']['title']} · {s['song']['artist']}" in rows[s["id"]] for s in tour["stops"] if "song" in s),
+          "and each names its song")
+
     print("Offline")
+
     fresh(page)
     if page.is_visible(sel("download")):
         tap(page, "download")

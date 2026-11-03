@@ -4,20 +4,20 @@
 // first `lookahead` unplayed stops from the cursor can trigger, so a story placed on
 // the return leg can't fire on the way out. A triggered stop is queued, never
 // interrupts the one playing, and stops it jumps over are marked skipped (still
-// playable by hand). "Start here" is the manual override: it moves the cursor and
-// plays that stop now.
+// playable by hand). Play now (in All stories) is the manual override, startHere(): it
+// moves the cursor and plays that stop now.
 //
 // Start never plays audio (tasks/001): it arms GPS, and saved progress is offered as
 // Resume. Coarse (network) fixes never trigger. While the page is hidden Chrome sends no
 // GPS (tasks/006), so after a gap the player waits for a fix of ±50 m or better, then
 // offers any stop whose zone the jump crossed as "Passed while you were away" (status
 // `missed`), never auto-playing it. Every trigger, play and ignored fix goes to an event
-// log in localStorage (More → Event log).
+// log in localStorage (All stories → Why did that play?).
 //
 // Three classic scripts, loaded in order, no build step: app.js (this file) is the engine:
 // state, persistence, the log, geometry, the queue, audio, the cache, GPS, simulation and the
 // songs' room check. map.js draws the route; view.js draws everything else and wires the page.
-// The engine calls the view's render(), renderNow(), onLog() and toast(); they exist by the
+// The engine calls the view's render(), onLog() and toast(); they exist by the
 // time anything runs, because main() (in view.js) starts it all.
 
 const CACHE = "audio-tours";
@@ -29,7 +29,6 @@ const AWAY_AFTER = 20000; // ms without a fix that counts as being away, like a 
 const SPEED_HOLD = 10000; // ms after a gap in which no speed is derived from positions
 const STALE_AFTER = 8 * 3600 * 1000; // ms; older saved progress asks "from the beginning or continue?"
 const LOG_SIZE = 30; // event-log entries kept
-const NEAR = 2000; // metres; "Play now" is the green button only this close to the zone
 const SONG_MARGIN = 60; // s; offer a song only if the next trigger is this much further off than its length (tasks/006)
 const SONG_MIN_SPEED = 8; // m/s; the room check never assumes slower, so a stop at the lights opens no window
 const $ = (sel) => document.querySelector(sel);
@@ -43,8 +42,8 @@ const S = {
   started: false,
   stale: false, // saved progress older than STALE_AFTER: offer "from the beginning" or "continue"
   resume: [], // stops that were playing or queued when the page was last closed: offered, not played
-  missed: [], // stops passed while away, offered in the Now card until the next stop starts
-  song: null, // the stop whose song the Now card shows, from its end until the next stop starts (tasks/006)
+  missed: [], // stops passed while away, offered until the next stop starts or dismissed
+  song: null, // the stop whose song is offered, from its end until the next stop starts or No thanks (tasks/006)
   why: {}, // stop id -> {cause, d, acc}: why it was queued, for the event log
   fix: null, // the latest fix, shown: {lat, lon, accuracy, speed, time, coarse}
   last: null, // the latest fix used for triggering (the start of a catch-up segment)
@@ -53,6 +52,9 @@ const S = {
   track: [], // the last 2 minutes of used fixes {lat, lon, speed, time}, speed null if unknown
   log: [], // event log, newest last (also in localStorage)
   cached: new Set(), // stop ids whose audio is in the cache
+  saving: false, // downloadAll is running
+  saveError: null, // why the last downloadAll stopped, until the next one
+  savedAt: 0, // when progress was last saved (ms), 0 if never: fresh progress opens the car screen
   wakeLock: null,
   sim: null,
   blocked: false, // the browser refused to start audio; show a "Tap to play" button
@@ -71,7 +73,8 @@ function save() {
     // `pending` (an unresumed offer, the stop playing, then the queue) is offered as Resume after a reload.
     const pending = [...S.resume, S.current, ...S.queue].filter(Boolean).map((s) => s.id);
     const missed = S.missed.map((s) => s.id);
-    localStorage.setItem(key(), JSON.stringify({ cursor: S.cursor, status: S.status, pending, missed, savedAt: Date.now() }));
+    S.savedAt = Date.now();
+    localStorage.setItem(key(), JSON.stringify({ cursor: S.cursor, status: S.status, pending, missed, savedAt: S.savedAt }));
   } catch {}
 }
 function load() {
@@ -81,6 +84,7 @@ function load() {
     S.status = saved.status || {};
     S.resume = (saved.pending || []).map(byId).filter(Boolean);
     S.missed = (saved.missed || []).map(byId).filter(Boolean);
+    S.savedAt = saved.savedAt || 0;
     const progress = S.cursor || Object.keys(S.status).length || S.resume.length;
     // Progress saved before savedAt existed counts as stale.
     S.stale = Boolean(progress) && Date.now() - (saved.savedAt || 0) > STALE_AFTER;
@@ -180,7 +184,7 @@ function advanceTo(i) {
   S.cursor = Math.max(S.cursor, i + 1);
 }
 
-/** Queue stop i by GPS or by hand (the "Play now" button on the Next stop card). */
+/** Queue stop i by GPS or by hand (Play it now on the car screen). */
 function trigger(i, why = { cause: "manual" }) {
   advanceTo(i);
   enqueue(stops()[i], why);
@@ -218,6 +222,60 @@ function resume() {
   S.resume = [];
   for (const s of list) enqueue(s, { cause: "resume" });
   save();
+}
+
+/** Decline the Resume offer: the stops it held become skipped (still playable by hand). */
+function declineResume() {
+  if (S.resume.length) logEvent("resume-declined", S.resume[0], { skipped: S.resume.map((s) => s.n) });
+  for (const s of S.resume) if (!S.status[s.id] && !busy(s)) S.status[s.id] = "skipped";
+  S.resume = [];
+  save();
+  render();
+}
+
+/** After a reload: start without the story that was cut off. Plays nothing, like Start. */
+function carryOn() {
+  declineResume();
+  start();
+}
+
+/** "Passed while you were away" → Skip: the offer goes, the stop stays skipped. */
+function dismissMissed(s) {
+  S.missed = S.missed.filter((x) => x !== s);
+  S.status[s.id] = "skipped";
+  logEvent("dismiss", s);
+  save();
+  render();
+}
+
+/** The song offer → No thanks. The song stays in the stop's row in All stories. */
+function dismissSong() {
+  if (S.song) logEvent("song-dismiss", S.song);
+  S.song = null;
+  render();
+}
+
+/** Mark unplayed: the stop can trigger again, and the cursor moves back to it if needed. */
+function unplay(i) {
+  delete S.status[stops()[i].id];
+  S.cursor = Math.min(S.cursor, i);
+  save();
+  render();
+}
+
+/** Start over: every stop unplayed, the sequence back at stop 1. The tour stays started. */
+function resetTour() {
+  S.status = {};
+  S.cursor = 0;
+  S.queue = [];
+  S.resume = [];
+  S.missed = [];
+  S.song = null;
+  audio.pause();
+  S.current = null;
+  logEvent("reset");
+  save();
+  render();
 }
 
 /** A stop starting ends the offers, except that playing one offer leaves the others. */
@@ -321,30 +379,32 @@ async function checkCached() {
   render();
 }
 
+/** Save every stop's audio (and the page) for offline use. Progress is S.cached; the view
+ *  shows S.saving and S.saveError. */
 async function downloadAll() {
-  const btn = $("#download");
-  btn.disabled = true;
+  if (S.saving) return;
+  S.saving = true;
+  S.saveError = null;
+  render();
   try {
     if (navigator.storage?.persist) await navigator.storage.persist();
     const cache = await caches.open(CACHE);
     const todo = stops().filter((s) => s.audio && !S.cached.has(s.id));
-    let done = 0;
     for (const s of todo) {
-      btn.textContent = `Downloading ${done + 1} of ${todo.length}…`;
       const r = await fetch(s.audio);
       if (!r.ok) throw new Error(`stop ${s.n}: HTTP ${r.status}`);
       await cache.put(audioKey(s), r);
       S.cached.add(s.id);
-      done++;
       render();
     }
     // Also cache the page itself (the service worker caches it too; this is belt and braces).
     await cache.addAll([location.href, "tour.json"]).catch(() => {});
-    toast("Tour downloaded: it now works offline");
+    toast("Saved: the tour now works with no signal");
   } catch (err) {
-    toast(`Download stopped: ${err.message}`);
+    S.saveError = err.message;
+    toast(`Saving stopped: ${err.message}`);
   } finally {
-    btn.disabled = false;
+    S.saving = false;
     render();
   }
 }
@@ -544,10 +604,10 @@ function simulate(factor) {
 }
 
 // --- songs (tasks/006) ---------------------------------------------------------------
-// When a stop with a song ends, the Now card shows the song until the next stop starts. While
-// Spotify is in front the page gets no GPS, so ▶ Play on Spotify is offered only if the next
-// trigger is more than the song's length plus SONG_MARGIN away; otherwise "Save for later".
-// The song stays in the stop's expanded card either way.
+// When a stop with a song ends, the song is offered until the next stop starts (or No thanks).
+// While Spotify is in front the page gets no GPS, so ▶ Play on Spotify is offered only if the
+// next trigger is more than the song's length plus SONG_MARGIN away; otherwise "Save for later".
+// The song stays in the stop's row in All stories either way.
 
 const esc = (t) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
