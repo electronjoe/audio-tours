@@ -149,6 +149,7 @@ def fresh(page) -> None:
     page.evaluate("() => localStorage.clear()")
     page.reload()
     page.wait_for_function("() => window.__tour")
+    page.evaluate("() => window.scrollTo(0, 0)")  # Chrome restores the last scroll position on reload
 
 
 def set_visible(page, visible: bool) -> None:
