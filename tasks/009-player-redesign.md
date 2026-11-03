@@ -1,6 +1,6 @@
 # 009: Player redesign: the glance screen and a map page (A.3)
 
-Status: todo · Priority: high · Raised: 2026-11-03 (player redesign demos)
+Status: doing · Priority: high · Raised: 2026-11-03 (player redesign demos)
 
 ## Why
 
