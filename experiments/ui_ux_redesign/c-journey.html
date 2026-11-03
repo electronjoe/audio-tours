@@ -1,0 +1,660 @@
+<!doctype html>
+<!-- Design C · Journey: a narrated feed for passengers, with a journey strip on top and a mini player below. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>C · Journey</title>
+<style>
+/* ---- Demo engine: phone frame, demo controls, toast. Not part of the design. ---- */
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); -webkit-tap-highlight-color: transparent; }
+#phone { position: relative; height: 100vh; height: 100dvh; overflow: hidden; background: var(--bg); color: var(--fg); }
+.demo-tab { position: fixed; right: 0; top: 46%; z-index: 1001; writing-mode: vertical-rl; padding: 12px 6px;
+  border: 0; border-radius: 8px 0 0 8px; background: rgba(20, 22, 26, .78); color: #fff;
+  font: 600 11px/1 system-ui, sans-serif; letter-spacing: .12em; text-transform: uppercase; cursor: pointer; }
+.demo-scrim { position: fixed; inset: 0; z-index: 1002; background: rgba(0, 0, 0, .45); opacity: 0;
+  pointer-events: none; transition: opacity .2s; }
+.demo-panel { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1003; max-height: 82vh; overflow: auto;
+  padding: 14px 16px 24px; background: #1d2026; color: #e6e8eb; font: 14px/1.35 system-ui, sans-serif;
+  border-radius: 16px 16px 0 0; transform: translateY(105%); transition: transform .25s; }
+body.demo-open .demo-scrim { opacity: 1; pointer-events: auto; }
+body.demo-open .demo-panel { transform: none; }
+.demo-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.demo-head small { display: block; color: #9aa3ad; margin-top: 2px; }
+.demo-panel h4 { margin: 14px 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: #9aa3ad; }
+.demo-note { margin: 8px 0 0; color: #9aa3ad; font-size: 13px; }
+.demo-panel button { font: inherit; color: inherit; background: #2a2f37; border: 1px solid #3a414b;
+  border-radius: 8px; padding: 8px 10px; cursor: pointer; }
+.demo-panel button.on { border-color: #8ab4f8; background: #24344d; }
+.demo-scen { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.demo-scen button { text-align: left; }
+.demo-scen small { display: block; color: #9aa3ad; font-size: 12px; margin-top: 2px; }
+.demo-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.demo-row button { flex: 1 1 auto; }
+.demo-readout { margin-top: 12px; font: 12px/1.45 ui-monospace, Menlo, monospace; color: #9aa3ad; }
+.demo-x { flex: none; width: 36px; height: 36px; padding: 0 !important; }
+.demo-away { position: absolute; inset: 0; z-index: 900; display: grid; place-items: center; padding: 32px;
+  text-align: center; background: rgba(8, 9, 11, .92); color: #eef0f2; font: 16px/1.45 system-ui, sans-serif; }
+.demo-away button { margin-top: 12px; font: 600 16px system-ui, sans-serif; padding: 12px 18px; border-radius: 99px;
+  border: 0; background: #fff; color: #111; cursor: pointer; }
+.demo-toast { position: absolute; left: 16px; right: 16px; bottom: 116px; z-index: 950; padding: 12px 14px;
+  border-radius: 12px; background: #23262b; color: #f1f3f4; font: 15px/1.35 system-ui, sans-serif;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .3); }
+@media (min-width: 820px) {
+  html body { display: flex; align-items: center; justify-content: center; gap: 32px; min-height: 100vh; background: #2b2f36; }
+  #phone { flex: none; width: 390px; height: 844px; max-height: calc(100vh - 40px); border-radius: 36px;
+    box-shadow: 0 0 0 10px #0d0f12, 0 24px 70px rgba(0, 0, 0, .5); }
+  .demo-tab, .demo-scrim, .demo-x { display: none; }
+  .demo-panel { position: static; transform: none; width: 320px; max-height: calc(100vh - 40px); border-radius: 16px; }
+}
+
+/* ---- Design C tokens: warm paper, ink-blue accent, serif headlines. ---- */
+:root {
+  --bg: #f7f2e9; --paper: #fffdf8; --fg: #231f1a; --muted: #6f665b; --line: #e3d9c8;
+  --accent: #2f4f7f; --accent-fg: #ffffff; --accent-soft: #e3e9f3; --kids: #fbefc8; --kids-fg: #5a4410; --song: #e8efe4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17150f; --paper: #211e17; --fg: #f1ebe0; --muted: #b0a593; --line: #3a342a;
+    --accent: #9db8e6; --accent-fg: #111a2b; --accent-soft: #24304a; --kids: #3a3018; --kids-fg: #f3dc9a; --song: #23301f;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17150f; --paper: #211e17; --fg: #f1ebe0; --muted: #b0a593; --line: #3a342a;
+  --accent: #9db8e6; --accent-fg: #111a2b; --accent-soft: #24304a; --kids: #3a3018; --kids-fg: #f3dc9a; --song: #23301f;
+}
+
+#phone { display: flex; flex-direction: column; font: 17px/1.5 system-ui, sans-serif; }
+button { font: inherit; color: inherit; cursor: pointer; }
+.serif { font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Noto Serif", Georgia, serif; }
+
+/* Journey strip */
+.strip { flex: none; padding: 14px 16px 12px; background: var(--paper); border-bottom: 1px solid var(--line); }
+.strip-top { display: flex; align-items: center; gap: 10px; }
+.strip-top h1 { flex: 1; margin: 0; font-size: 19px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pill-btn { min-height: 44px; padding: 0 16px; border-radius: 99px; border: 1px solid var(--line); background: var(--bg); font-weight: 600; font-size: 15px; }
+.track { position: relative; height: 34px; margin: 10px 8px 0; }
+.track .line { position: absolute; left: 0; right: 0; top: 15px; height: 4px; border-radius: 2px; background: var(--line); }
+.track .fill { position: absolute; left: 0; top: 15px; height: 4px; border-radius: 2px; background: var(--accent); width: 0; }
+.track .stop-dot { position: absolute; top: 9px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%;
+  background: var(--paper); border: 2px solid var(--muted); }
+.track .stop-dot.played { background: var(--accent); border-color: var(--accent); }
+.track .stop-dot.playing { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 5px var(--accent-soft); }
+.track .stop-dot.skipped, .track .stop-dot.missed { border-style: dashed; }
+.track .me { position: absolute; top: 4px; width: 26px; height: 26px; margin-left: -13px; border-radius: 50%;
+  background: var(--fg); color: var(--bg); display: grid; place-items: center; font-size: 13px; box-shadow: 0 2px 6px rgba(0, 0, 0, .25); }
+.strip-next { margin: 4px 0 0; font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Feed */
+.feed { flex: 1; overflow: auto; padding: 16px 16px 28px; display: flex; flex-direction: column; gap: 14px; scroll-behavior: smooth; }
+.feed > * { flex-shrink: 0; }
+.guide { display: flex; gap: 10px; align-items: flex-start; }
+.guide .face { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: var(--accent-fg);
+  display: grid; place-items: center; font-size: 16px; }
+.bubble { background: var(--paper); border: 1px solid var(--line); border-radius: 4px 18px 18px 18px; padding: 12px 14px; max-width: 88%; }
+.bubble p { margin: 0; }
+.bubble p + p { margin-top: 6px; }
+.bubble .g-act { margin-top: 12px; }
+.sys { text-align: center; font-size: 13px; color: var(--muted); }
+.sys time { font-variant-numeric: tabular-nums; }
+.btn { min-height: 48px; padding: 0 20px; border-radius: 99px; border: 0; background: var(--accent); color: var(--accent-fg); font-weight: 700; }
+.btn.ghost { background: transparent; border: 1.5px solid var(--line); color: var(--fg); }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.ok { color: var(--accent); font-weight: 600; }
+.warnish { color: var(--kids-fg); }
+.prog { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.prog > div { height: 100%; width: 0; background: var(--accent); transition: width .2s linear; }
+.near { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 14px; border: 1px dashed var(--line); }
+.near .art { width: 44px; height: 44px; font-size: 22px; border-radius: 12px; }
+.near p { margin: 0; font-size: 15px; }
+.kick { margin: 0; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.art { flex: none; display: grid; place-items: center; background: linear-gradient(135deg, hsl(var(--h) 55% 78%), hsl(calc(var(--h) + 40) 60% 62%)); }
+.story { background: var(--paper); border: 1px solid var(--line); border-radius: 22px; overflow: hidden; }
+.story .art { height: 132px; font-size: 64px; }
+.story.past .art { height: 64px; font-size: 32px; filter: saturate(.5); }
+.story-body { padding: 14px 16px 16px; }
+.story h2 { margin: 4px 0 4px; font-size: 25px; line-height: 1.15; font-weight: 700; }
+.story.past h2 { font-size: 19px; }
+.teaser { margin: 0; color: var(--muted); }
+.story.past .teaser { display: none; }
+.story-foot { margin-top: 12px; }
+.ctl { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.ctl .time { flex: 1; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.why { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
+.kids { background: var(--kids); color: var(--kids-fg); border-radius: 18px; padding: 14px 16px; }
+.kids .kick { color: inherit; opacity: .8; }
+.kids p.q { margin: 4px 0 0; font-size: 20px; line-height: 1.3; }
+.song { background: var(--song); border-radius: 18px; padding: 14px 16px; }
+.song p { margin: 4px 0 0; }
+.song .meta { font-size: 14px; color: var(--muted); }
+.missed { background: var(--paper); border: 1.5px solid var(--accent); border-radius: 18px; padding: 14px 16px; }
+.missed p { margin: 0; }
+.missed .kick { margin-top: 8px; color: var(--accent); }
+.end { background: var(--paper); border: 1px solid var(--line); border-radius: 22px; padding: 18px 16px; text-align: center; }
+.end h2 { margin: 6px 0; font-size: 26px; }
+.end p { margin: 0; color: var(--muted); }
+.end .redo { text-align: left; margin-top: 14px; display: grid; gap: 8px; }
+.redo button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; border-radius: 14px;
+  border: 1px solid var(--line); background: var(--bg); text-align: left; padding: 6px 12px; }
+.newpill { position: absolute; left: 50%; transform: translateX(-50%); bottom: 96px; z-index: 4; min-height: 40px; padding: 0 16px;
+  border-radius: 99px; border: 0; background: var(--fg); color: var(--bg); font-weight: 600; box-shadow: 0 4px 12px rgba(0, 0, 0, .25); }
+
+/* Mini player */
+.player { flex: none; padding: 10px 16px 18px; background: var(--paper); border-top: 1px solid var(--line); min-height: 84px;
+  display: flex; align-items: center; gap: 12px; }
+.player .art { width: 52px; height: 52px; border-radius: 14px; font-size: 26px; }
+.mini-t { flex: 1; min-width: 0; }
+.mini-t b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-t small { display: block; color: var(--muted); font-size: 14px; }
+.mini-t .prog { height: 4px; margin-top: 6px; }
+.round { flex: none; width: 52px; height: 52px; border-radius: 50%; border: 0; background: var(--accent); color: var(--accent-fg); display: grid; place-items: center; }
+.round.ghost { background: transparent; color: var(--fg); border: 1.5px solid var(--line); }
+.round svg { width: 22px; height: 22px; fill: currentColor; }
+.start { flex: 1; min-height: 60px; border-radius: 18px; border: 0; background: var(--accent); color: var(--accent-fg); font-size: 19px; font-weight: 800; }
+
+/* Stories (table of contents) */
+.toc { position: absolute; inset: 0; z-index: 10; background: var(--bg); overflow: auto; padding: 0 16px 24px; }
+.toc-head { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; padding: 16px 0 10px; background: var(--bg); }
+.toc-head h2 { margin: 0; font-size: 26px; }
+.chapter { display: flex; gap: 12px; width: 100%; padding: 10px; border-radius: 18px; border: 1px solid var(--line); background: var(--paper);
+  text-align: left; margin-bottom: 8px; align-items: center; min-height: 72px; }
+.chapter .art { width: 52px; height: 52px; border-radius: 14px; font-size: 26px; }
+.chapter b { display: block; }
+.chapter small { display: block; color: var(--muted); font-size: 14px; }
+.chapter.played, .chapter.skipped { opacity: .7; }
+.ch-acts { display: flex; gap: 8px; margin: -2px 0 12px; }
+</style>
+</head>
+<body>
+<div id="phone">
+  <header class="strip">
+    <div class="strip-top"><h1 class="serif" id="t"></h1><button class="pill-btn" data-act="openToc">Stories</button></div>
+    <div class="track" id="track"></div>
+    <p class="strip-next" id="strip-next"></p>
+  </header>
+  <main class="feed" id="feed"><div id="intro"></div></main>
+  <button class="newpill" id="newpill" data-act="toBottom" hidden>↓ New</button>
+  <footer class="player" id="player"></footer>
+  <section class="toc" id="toc" hidden></section>
+</div>
+<script>
+/* ======================================================================
+   Demo engine, identical in all three designs: a made-up tour, a
+   simulated drive and the demo controls. Not part of any design.
+   It follows the real player's rules (site/player/app.js): stops play in
+   order, a stop that triggers while another plays waits its turn, no GPS
+   reaches the page while it's in the background, and stops passed
+   meanwhile are offered, never auto-played.
+   ====================================================================== */
+const TOUR = {
+  title: "Coast Road to Cape Wren",
+  start: "Port Ellis",
+  km: 96,
+  mb: 38,
+  stops: [
+    { n: 1, title: "The Bridge That Floated", place: "Crossing Larkspur Bridge", short: "Larkspur Bridge", at: 8, dur: 172, art: "🌉",
+      teaser: "Why the first bridge here was built on barrels.",
+      kids: "If you had to build a bridge out of things in this car, what would you use?" },
+    { n: 2, title: "The Town with Two Names", place: "Entering Millbrook", short: "Millbrook", at: 21, dur: 181, art: "🏘️",
+      teaser: "Two mapmakers, one town, and a forty-year argument.",
+      kids: "If our street got a new name, what should it be?" },
+    { n: 3, title: "Orchards on the Hill", place: "Passing the apple country", short: "Apple country", at: 34, dur: 180, art: "🍎",
+      teaser: "A whole valley of trees, grown from one pip.",
+      kids: "Count the orchards until the next story. Who sees the most?" },
+    { n: 4, title: "The Postman Who Swam", place: "Gull Point lookout", short: "Gull Point", at: 47, dur: 185, art: "✉️",
+      teaser: "Mail day on the island meant a very cold swim.",
+      kids: "What's the furthest you'd go to deliver one letter?" },
+    { n: 5, title: "Children of the Lighthouse", place: "Coming into Wren Bay", short: "Wren Bay", at: 49.5, dur: 176, art: "⛵",
+      teaser: "School was a rowing boat away.",
+      kids: "Would you like to live in a lighthouse? What would you miss?" },
+    { n: 6, title: "The Shipwreck Library", place: "Driving past Driftwood Cove", short: "Driftwood Cove", at: 64, dur: 190, art: "📚",
+      teaser: "A cargo of books washed ashore, and the town kept them.",
+      kids: "If a crate washed up on the beach, what do you hope is inside?",
+      song: { title: "Saltwater Sky", artist: "The Paper Lanterns", length: 214, why: "A made-up song about this stretch of coast." } },
+    { n: 7, title: "The Light at the End of the Land", place: "Arriving at Cape Wren", short: "Cape Wren", at: 92, dur: 200, art: "🌅",
+      teaser: "Why the lighthouse wears stripes.",
+      kids: "Invent a secret signal with a torch. What does it mean?" },
+  ],
+};
+const TRIGGER_KM = 0.6; // a stop starts this far before its point
+const LOOKAHEAD = 2; // like tour.json `lookahead`
+const START_TIME = 9 * 3600 + 5 * 60; // the simulated drive leaves at 9:05
+
+const S = { rate: 20, frozen: false, theme: "auto", rev: 0 };
+let seq = 0;
+function reset() {
+  Object.assign(S, {
+    phase: "setup", downloaded: 0, downloading: false, located: false, installed: false, online: true,
+    km: 0, speed: 80, clock: 0, away: false, cursor: 0, status: TOUR.stops.map(() => "upcoming"),
+    playing: null, queue: [], missed: [], song: null, feed: [], near: new Set(),
+  });
+  bump();
+}
+function bump() { S.rev++; }
+function emit(kind, i = null, extra = {}) { S.feed.push({ id: ++seq, kind, i, clock: S.clock, km: S.km, ...extra }); bump(); }
+
+const stop = (i) => TOUR.stops[i];
+function nextUp() { for (let i = S.cursor; i < TOUR.stops.length; i++) if (S.status[i] === "upcoming") return i; return null; }
+function distTo(i) { return Math.max(0, stop(i).at - TRIGGER_KM - S.km); }
+function minsTo(i) { return (distTo(i) / S.speed) * 60; }
+function heard() { return S.status.filter((s) => s === "played").length; }
+
+function checkTriggers() {
+  const win = [];
+  for (let i = S.cursor; i < TOUR.stops.length && win.length < LOOKAHEAD; i++) if (S.status[i] === "upcoming") win.push(i);
+  for (const i of win) if (S.km >= stop(i).at - TRIGGER_KM) return trigger(i, "gps");
+  const n = nextUp();
+  if (n != null && !S.near.has(n) && distTo(n) <= 3) { S.near.add(n); emit("near", n); }
+}
+function trigger(i, cause) {
+  for (let j = S.cursor; j < i; j++) if (S.status[j] === "upcoming") S.status[j] = "skipped";
+  S.cursor = Math.max(S.cursor, i + 1);
+  if (S.playing) { S.queue.push(i); S.status[i] = "queued"; emit("queued", i); }
+  else play(i, cause);
+}
+function play(i, cause) {
+  S.near.add(i);
+  S.playing = { i, t: 0, paused: false };
+  S.status[i] = "playing";
+  S.song = null;
+  S.missed = S.missed.filter((m) => m !== i);
+  emit("play", i, { cause });
+}
+function finish() {
+  const i = S.playing.i;
+  S.status[i] = "played";
+  S.playing = null;
+  emit("done", i);
+  if (S.queue.length) return play(S.queue.shift(), "queue");
+  const song = stop(i).song, n = nextUp();
+  if (song && (n == null || minsTo(n) * 60 > song.length + 60)) { S.song = i; emit("song", i); }
+}
+function step(dt) {
+  if (S.phase === "drive") {
+    S.km = Math.min(TOUR.km, S.km + (S.speed / 3600) * dt);
+    S.clock += dt;
+    if (!S.away) checkTriggers();
+  }
+  if (S.playing && !S.playing.paused && (S.playing.t += dt) >= stop(S.playing.i).dur) finish();
+  if (S.phase === "drive" && S.km >= TOUR.km && !S.playing) { S.phase = "done"; emit("arrive"); }
+}
+function setAway(on) {
+  if (on === S.away) return;
+  S.away = on;
+  emit(on ? "away" : "back");
+  if (!on && S.phase === "drive")
+    for (let i = S.cursor; i < TOUR.stops.length; i++)
+      if (S.status[i] === "upcoming" && S.km > stop(i).at + 0.3) {
+        S.status[i] = "missed"; S.missed.push(i); S.cursor = i + 1; emit("missed", i);
+      }
+}
+
+/** What the design's buttons do (data-act="name" data-i="index"). */
+const act = {
+  download() {
+    if (S.downloaded >= 1 || S.downloading) return;
+    if (!S.online) return toast("No signal here. Try again where you have coverage.");
+    S.downloading = true; bump();
+  },
+  allowLocation() { S.located = true; bump(); },
+  install() { S.installed = true; bump(); toast("Added to the home screen (simulated)."); },
+  start() { S.located = true; S.phase = "drive"; emit("start"); },
+  pause() { if (S.playing) { S.playing.paused = !S.playing.paused; bump(); } },
+  skip() {
+    if (!S.playing) return;
+    const i = S.playing.i;
+    S.status[i] = "skipped"; S.playing = null; emit("skip", i);
+    if (S.queue.length) play(S.queue.shift(), "queue");
+  },
+  playNow(i) {
+    if (S.playing) { const p = S.playing.i; S.status[p] = S.playing.t > stop(p).dur * 0.9 ? "played" : "skipped"; S.playing = null; }
+    for (let j = S.cursor; j < i; j++) if (S.status[j] === "upcoming") S.status[j] = "skipped";
+    const later = S.queue.filter((q) => q > i);
+    S.queue.forEach((q) => (S.status[q] = q < i ? "skipped" : "upcoming"));
+    S.queue = [];
+    S.cursor = Math.max(S.cursor, i + 1);
+    if (later.length) S.cursor = Math.min(S.cursor, ...later);
+    S.missed = S.missed.filter((m) => m !== i);
+    play(i, "manual");
+  },
+  playMissed(i) {
+    S.missed = S.missed.filter((m) => m !== i);
+    if (S.playing) { S.queue.push(i); S.status[i] = "queued"; emit("queued", i); } else play(i, "missed");
+  },
+  dismissMissed(i) { S.missed = S.missed.filter((m) => m !== i); S.status[i] = "skipped"; emit("skip", i); },
+  openSong(i) { const s = stop(i).song; S.song = null; bump(); toast(`Would open Spotify: “${s.title}” by ${s.artist}.`); },
+  dismissSong() { S.song = null; bump(); },
+  navigate(i) { toast(`Would open Google Maps: stops ${i + 1}–${TOUR.stops.length}, then home.`); },
+  restart() {
+    const keep = { downloaded: S.downloaded, located: S.located, installed: S.installed };
+    reset(); Object.assign(S, keep);
+  },
+};
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const fmtKm = (km) => (km < 1 ? `${Math.max(50, Math.round(km * 20) * 50)} m` : km < 10 ? `${km.toFixed(1)} km` : `${Math.round(km)} km`);
+const fmtMins = (m) => (m < 1 ? "under a minute" : m < 60 ? `${Math.round(m)} min` : `${Math.floor(m / 60)} h ${Math.round(m % 60)} min`);
+function fmtClock(c) {
+  const t = START_TIME + c, h = Math.floor(t / 3600) % 24, m = Math.floor(t / 60) % 60;
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")}`;
+}
+
+let toastTimer;
+function toast(msg) {
+  const t = document.querySelector(".demo-toast");
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (t.hidden = true), 3000);
+}
+
+/* ---- Scenarios: each resets, then fast-forwards the same simulation. ---- */
+function ff(toKm, untilDone) {
+  for (let guard = 1e5; guard-- && (S.km < toKm - 1e-9 || (untilDone && S.phase !== "done")); ) step(1);
+}
+function ready() { S.downloaded = 1; S.located = true; S.installed = true; }
+function startDrive() { ready(); act.start(); }
+const SCENARIOS = [
+  ["Night before", "Setting up at home. Nothing saved yet.", () => {}],
+  ["No signal", "Signal dropped halfway through saving.", () => { S.downloaded = 0.45; S.online = false; S.located = true; }],
+  ["Ready to go", "Saved and allowed, not started.", ready],
+  ["Cruising", "Between stories, 6 km to the next.", () => { startDrive(); ff(27); }],
+  ["Story playing", "Story 3, 40% through.", () => { startDrive(); ff(35); }],
+  ["Two stories close", "Story 5 waits for story 4.", () => { startDrive(); ff(49.3); }],
+  ["Back from Maps", "Screen was away past story 3.", () => { startDrive(); ff(29); setAway(true); ff(37); setAway(false); }],
+  ["Song offer", "Story 6 ended; a long gap ahead.", () => { startDrive(); ff(69); }],
+  ["Arrived", "End of the road.", () => { startDrive(); ff(TOUR.km, true); }],
+];
+function scenario(k) { reset(); SCENARIOS[k][2](); S.scenario = k; bump(); }
+
+/* ---- Demo controls ---- */
+function buildPanel(name) {
+  document.body.insertAdjacentHTML("beforeend", `
+<button class="demo-tab" data-demo="open">Demo</button>
+<div class="demo-scrim" data-demo="close"></div>
+<aside class="demo-panel" aria-label="Demo controls">
+  <div class="demo-head"><div><b>Demo controls</b><small>${name}</small></div>
+    <button class="demo-x" data-demo="close" aria-label="Close">✕</button></div>
+  <p class="demo-note">A made-up tour and a simulated drive. These controls aren't part of the design.</p>
+  <h4>Jump to a moment</h4>
+  <div class="demo-scen">${SCENARIOS.map((s, k) => `<button data-demo="scen" data-k="${k}"><b>${s[0]}</b><small>${s[1]}</small></button>`).join("")}</div>
+  <h4>Simulation</h4>
+  <div class="demo-row"><button data-demo="freeze"></button>${[5, 20, 60].map((r) => `<button data-demo="rate" data-r="${r}">×${r}</button>`).join("")}</div>
+  <div class="demo-row" style="margin-top:6px"><button data-demo="away"></button><button data-demo="online"></button></div>
+  <h4>Theme</h4>
+  <div class="demo-row">${["auto", "light", "dark"].map((t) => `<button data-demo="theme" data-t="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join("")}</div>
+  <div class="demo-readout"></div>
+</aside>`);
+  document.querySelector("#phone").insertAdjacentHTML("beforeend", `
+<div class="demo-away" hidden><div>
+  <p><b>Simulated: you switched to Google Maps</b> (or the screen locked).</p>
+  <p>Chrome sends this page no GPS meanwhile. A story that's already playing keeps going.</p>
+  <button data-demo="away">Come back to the tour</button></div></div>
+<div class="demo-toast" hidden></div>`);
+}
+function renderPanel(full) {
+  const q = (s) => document.querySelector(s);
+  q(".demo-readout").textContent =
+    `car ${S.km.toFixed(1)} / ${TOUR.km} km · ${fmtClock(S.clock)} · ${S.phase}` +
+    (S.playing ? ` · playing ${S.playing.i + 1} at ${fmtTime(S.playing.t)}` : "") +
+    (S.queue.length ? ` · queued ${S.queue.map((i) => i + 1).join(",")}` : "");
+  if (!full) return;
+  document.querySelectorAll("[data-demo=scen]").forEach((b) => b.classList.toggle("on", +b.dataset.k === S.scenario));
+  document.querySelectorAll("[data-demo=rate]").forEach((b) => b.classList.toggle("on", +b.dataset.r === S.rate));
+  document.querySelectorAll("[data-demo=theme]").forEach((b) => b.classList.toggle("on", b.dataset.t === S.theme));
+  q(".demo-panel [data-demo=freeze]").textContent = S.frozen ? "▶ Run time" : "❚❚ Freeze time";
+  q(".demo-panel [data-demo=away]").textContent = S.away ? "Come back to the tour" : "Switch to Maps";
+  q(".demo-panel [data-demo=online]").textContent = S.online ? "Lose signal" : "Get signal back";
+  q(".demo-away").hidden = !S.away;
+  if (S.theme === "auto") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = S.theme;
+}
+
+let UI = { render() {}, acts: {} };
+document.addEventListener("click", (e) => {
+  const d = e.target.closest("[data-demo]");
+  if (d) {
+    const k = d.dataset.demo, body = document.body.classList;
+    if (k === "open") body.add("demo-open");
+    else if (k === "close") body.remove("demo-open");
+    else if (k === "scen") { scenario(+d.dataset.k); body.remove("demo-open"); }
+    else if (k === "rate") S.rate = +d.dataset.r;
+    else if (k === "freeze") S.frozen = !S.frozen;
+    else if (k === "away") { setAway(!S.away); body.remove("demo-open"); }
+    else if (k === "online") S.online = !S.online;
+    else if (k === "theme") S.theme = d.dataset.t;
+    bump();
+    return;
+  }
+  const b = e.target.closest("[data-act]");
+  if (!b || b.disabled) return;
+  const name = b.dataset.act, fn = UI.acts[name] || act[name];
+  if (!fn) return console.warn("no action", name);
+  fn(b.dataset.i == null ? undefined : Number(b.dataset.i));
+  bump();
+});
+
+let lastTick = performance.now(), lastRev = -1;
+function loop() {
+  const now = performance.now(), dt = Math.min(0.5, (now - lastTick) / 1000);
+  lastTick = now;
+  if (!S.frozen) {
+    if (S.downloading) {
+      if (!S.online) { S.downloading = false; bump(); }
+      else if ((S.downloaded = Math.min(1, S.downloaded + dt / 4)) >= 1) { S.downloading = false; bump(); }
+    }
+    for (let sim = dt * S.rate; sim > 0; sim -= 1) step(Math.min(1, sim));
+  }
+  const full = S.rev !== lastRev;
+  lastRev = S.rev;
+  UI.render(full);
+  renderPanel(full);
+}
+const Demo = {
+  mount(ui) {
+    UI = { acts: {}, ...ui };
+    buildPanel(ui.name);
+    scenario(0);
+    loop();
+    setInterval(loop, 100);
+  },
+};
+</script>
+<script>
+/* ======================= Design C · Journey ======================= */
+const $ = (s) => document.querySelector(s);
+const J = { toc: false, open: null, ids: [] };
+const ICON = {
+  play: '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>',
+  pause: '<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>',
+  next: '<svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>',
+};
+const hue = (i) => (i * 53 + 190) % 360;
+const art = (i, cls = "") => `<span class="art ${cls}" style="--h:${hue(i)}">${stop(i).art}</span>`;
+const guide = (html) => `<div class="guide"><span class="face">🧭</span><div class="bubble">${html}</div></div>`;
+const sys = (e, text) => `<div class="sys"><time>${fmtClock(e.clock)}</time> · ${text}</div>`;
+const lc = (s) => s[0].toLowerCase() + s.slice(1);
+
+$("#t").textContent = TOUR.title;
+$("#track").innerHTML = `<div class="line"></div><div class="fill" id="fill"></div>` +
+  TOUR.stops.map((s, i) => `<span class="stop-dot" data-dot="${i}" style="left:${(100 * s.at) / TOUR.km}%"></span>`).join("") +
+  `<span class="me" id="me">●</span>`;
+
+/* ---- The conversation before the trip ---- */
+function introHTML() {
+  const dl = S.downloaded >= 1, pct = Math.round(S.downloaded * 100);
+  if (S.phase !== "setup")
+    return `<div class="sys">${dl ? "✓ Stories saved on this phone" : "Stories not saved: they need signal"} · ✓ Location on</div>`;
+  let h = guide(`<p>Hello! This tour tells <b>${TOUR.stops.length} stories</b> on the road to ${stop(TOUR.stops.length - 1).short}, each one as you reach its place.</p>`);
+  const dlAct = dl ? `<span class="ok">✓ Saved. No signal needed now.</span>`
+    : S.downloading ? `<div class="prog"><div id="dl-bar" style="width:${pct}%"></div></div><p class="why">Saving… <span id="dl-pct">${pct}</span>%</p>`
+    : !S.online && S.downloaded > 0 ? `<p class="warnish">No signal here. ${pct}% saved; I'll finish when you have coverage.</p><div class="btns"><button class="btn" data-act="download">Try again</button></div>`
+    : `<button class="btn" data-act="download">Save stories (${TOUR.mb} MB)</button>`;
+  h += guide(`<p>First, let's save the stories on this phone so they play without signal.</p><div class="g-act">${dlAct}</div>`);
+  if (S.downloading || S.downloaded > 0)
+    h += guide(`<p>And I need to know where you are, so each story starts at the right place. Only while this page is open.</p>
+      <div class="g-act">${S.located ? `<span class="ok">✓ Location on</span>` : `<button class="btn" data-act="allowLocation">Allow location</button>`}</div>`);
+  if (S.located)
+    h += guide(`<p>All set. Tap <b>Start the tour</b> just before you drive off, and leave the phone on. Nobody needs to touch it after that.</p>`);
+  return h;
+}
+
+/* ---- One feed item per engine event ---- */
+const CAUSE = { gps: "Started as you reached it", manual: "You tapped Play", queue: "Played right after the story before", missed: "You chose to hear it after passing" };
+function itemHTML(e) {
+  const i = e.i, s = i != null ? stop(i) : null;
+  switch (e.kind) {
+    case "start":
+      return guide(`<p>We're off! The first story starts in about ${fmtKm(stop(0).at - TRIGGER_KM - e.km)}, ${lc(stop(0).place)}.</p>`);
+    case "near":
+      return `<div class="near">${art(i)}<div><p class="kick">Coming up · ${s.place}</p><p><b>${s.title}</b>. ${s.teaser}</p></div></div>`;
+    case "play":
+      return `<article class="story" data-id="${e.id}" data-i="${i}">${art(i)}<div class="story-body">
+        <p class="kick">Story ${s.n} of ${TOUR.stops.length} · ${s.place}</p><h2 class="serif">${s.title}</h2>
+        <p class="teaser">${s.teaser}</p><div class="story-foot"></div>
+        <p class="why">${CAUSE[e.cause]} · ${fmtClock(e.clock)}</p></div></article>`;
+    case "queued":
+      return guide(`<p><b>${s.title}</b> is here too. It's next, right after this one.</p>`);
+    case "done":
+      return s.kids ? `<div class="kids"><p class="kick">A question for the car</p><p class="q serif">${s.kids}</p></div>` : "";
+    case "song": {
+      const sg = s.song;
+      return `<div class="song" data-song="${e.id}" data-i="${i}"><p class="kick">A song for this stretch</p>
+        <p><b>${esc(sg.title)}</b> · ${esc(sg.artist)}</p><p class="meta">${esc(sg.why)} ${fmtTime(sg.length)} long; the next story is a while away.</p>
+        <div class="song-foot"></div></div>`;
+    }
+    case "missed":
+      return `<div class="missed" data-missed="${i}"><p>While the phone was in another app, we passed <b>${s.short}</b>, so its story didn't start.</p>
+        <p class="kick">Story ${s.n} · ${s.title}</p><div class="missed-foot"></div></div>`;
+    case "skip":
+      return sys(e, `Skipped “${s.title}”. It's still in Stories.`);
+    case "away":
+      return sys(e, "Phone in another app. I can't see where we are.");
+    case "back":
+      return sys(e, "Back. Listening for the next place again.");
+    case "arrive": {
+      const left = TOUR.stops.map((x, k) => k).filter((k) => S.status[k] !== "played");
+      return `<div class="end"><p class="kick">${fmtClock(e.clock)}</p><h2 class="serif">That's the end of the road.</h2>
+        <p>You heard ${heard()} of ${TOUR.stops.length} stories on the way to ${stop(TOUR.stops.length - 1).short}.</p>
+        ${left.length ? `<div class="redo">${left.map((k) => `<button data-act="playNow" data-i="${k}">${art(k)}<span><b>${stop(k).title}</b><br><small>Not heard yet · play it now</small></span></button>`).join("")}</div>` : ""}</div>`;
+    }
+  }
+  return "";
+}
+
+/** Bring older cards up to date: which story card is live, which offers are still open. */
+function refreshItems() {
+  const cards = [...document.querySelectorAll(".story")];
+  const live = S.playing ? cards.filter((c) => +c.dataset.i === S.playing.i).pop() : null;
+  for (const c of cards) {
+    const i = +c.dataset.i, foot = c.querySelector(".story-foot");
+    c.classList.toggle("past", c !== live && c !== cards[cards.length - 1]);
+    if (c === live) {
+      if (!foot.querySelector(".ctl")) foot.innerHTML = `<div class="prog"><div class="live-fill"></div></div>
+        <div class="ctl"><span class="time live-time"></span>
+        <button class="round" data-act="pause" aria-label="Pause"></button><button class="round ghost" data-act="skip" aria-label="Skip">${ICON.next}</button></div>`;
+      foot.querySelector("[data-act=pause]").innerHTML = S.playing.paused ? ICON.play : ICON.pause;
+    } else {
+      const st = S.status[i];
+      foot.innerHTML = `<span class="${st === "played" ? "ok" : "why"}">${st === "played" ? "✓ Heard" : st === "playing" ? "Playing again below" : "Stopped part-way"}</span>`;
+    }
+  }
+  document.querySelectorAll("[data-missed]").forEach((m) => {
+    const i = +m.dataset.missed, foot = m.querySelector(".missed-foot");
+    foot.innerHTML = S.missed.includes(i)
+      ? `<div class="btns"><button class="btn" data-act="playMissed" data-i="${i}">Play it</button><button class="btn ghost" data-act="dismissMissed" data-i="${i}">Skip it</button></div>`
+      : `<p class="why">${S.status[i] === "skipped" ? "Skipped" : "✓ Chosen"}</p>`;
+  });
+  const songs = [...document.querySelectorAll("[data-song]")];
+  songs.forEach((m, k) => {
+    const open = S.song != null && k === songs.length - 1;
+    m.querySelector(".song-foot").innerHTML = open
+      ? `<div class="btns"><button class="btn" data-act="openSong" data-i="${m.dataset.i}">Play on Spotify</button><button class="btn ghost" data-act="dismissSong">No thanks</button></div>`
+      : "";
+  });
+}
+
+function playerHTML() {
+  if (S.phase === "setup") return `<button class="start" data-act="start">Start the tour</button>`;
+  if (S.playing) {
+    const s = stop(S.playing.i);
+    return `${art(S.playing.i)}<div class="mini-t"><b>${s.title}</b><small id="mini-time"></small><div class="prog"><div id="mini-fill"></div></div></div>
+      <button class="round" data-act="pause" aria-label="Pause">${S.playing.paused ? ICON.play : ICON.pause}</button>`;
+  }
+  if (S.phase === "done") return `<button class="start" data-act="restart">Start over</button>`;
+  const n = nextUp();
+  if (n == null) return `<div class="mini-t"><b>No more stories</b><small>Nearly there</small></div>`;
+  return `${art(n)}<div class="mini-t"><small>Next · <span id="mini-d"></span></small><b>${stop(n).title}</b></div>
+    <button class="btn ghost" data-act="playNow" data-i="${n}">Play now</button>`;
+}
+function tocHTML() {
+  const ST = { upcoming: "Coming up", playing: "Playing", queued: "Next", played: "Heard", skipped: "Skipped", missed: "Missed" };
+  return `<div class="toc-head"><h2 class="serif">Stories</h2><button class="pill-btn" data-act="closeToc">Done</button></div>` +
+    TOUR.stops.map((s, i) => `<button class="chapter ${S.status[i]}" data-act="openCh" data-i="${i}">${art(i)}
+      <span><b>${s.n}. ${s.title}</b><small>${s.place} · ${Math.round(s.dur / 60)} min · ${ST[S.status[i]]}</small></span></button>
+      ${J.open === i ? `<div class="ch-acts"><button class="btn" data-act="playFromToc" data-i="${i}">Play now</button>
+        <button class="btn ghost" data-act="navigate" data-i="${i}">Navigate from here</button></div>` : ""}`).join("");
+}
+
+/* ---- Render ---- */
+function render(full) {
+  const feed = $("#feed");
+  if (full) {
+    const ids = S.feed.map((e) => e.id);
+    const stale = J.ids.length && (ids[0] !== J.ids[0] || ids.length < J.ids.length);
+    if (stale) { feed.innerHTML = `<div id="intro"></div>`; J.ids = []; }
+    const nearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 140;
+    $("#intro").innerHTML = introHTML();
+    const fresh = S.feed.slice(J.ids.length);
+    for (const e of fresh) feed.insertAdjacentHTML("beforeend", itemHTML(e));
+    J.ids = ids;
+    refreshItems();
+    if (stale || !J.ids.length || nearBottom) { feed.style.scrollBehavior = stale ? "auto" : ""; feed.scrollTop = feed.scrollHeight; feed.style.scrollBehavior = ""; $("#newpill").hidden = true; }
+    else if (fresh.length) $("#newpill").hidden = false;
+    $("#player").innerHTML = playerHTML();
+    document.querySelectorAll("[data-dot]").forEach((d) => (d.className = `stop-dot ${S.status[+d.dataset.dot]}`));
+    const toc = $("#toc"), top = toc.scrollTop;
+    toc.hidden = !J.toc;
+    if (J.toc) { toc.innerHTML = tocHTML(); toc.scrollTop = top; }
+  }
+  $("#fill").style.width = `${(100 * S.km) / TOUR.km}%`;
+  $("#me").style.left = `${(100 * S.km) / TOUR.km}%`;
+  const n = nextUp();
+  $("#strip-next").textContent = S.phase === "setup" ? `${TOUR.stops.length} stories · ${TOUR.km} km · about 1 h 15 min`
+    : S.phase === "done" ? `Arrived · ${heard()} of ${TOUR.stops.length} stories heard`
+    : S.playing ? `Now: ${stop(S.playing.i).title}`
+    : n != null ? `Next: ${stop(n).title} · ${fmtKm(distTo(n))}` : "No more stories";
+  if (S.playing) {
+    const s = stop(S.playing.i), f = `${(100 * S.playing.t) / s.dur}%`, t = `${fmtTime(S.playing.t)} / ${fmtTime(s.dur)}`;
+    document.querySelectorAll(".live-fill").forEach((x) => (x.style.width = f));
+    document.querySelectorAll(".live-time").forEach((x) => (x.textContent = t));
+    if ($("#mini-fill")) $("#mini-fill").style.width = f;
+    if ($("#mini-time")) $("#mini-time").textContent = t;
+  }
+  if ($("#mini-d") && n != null) $("#mini-d").textContent = `${fmtKm(distTo(n))} · ${fmtMins(minsTo(n))}`;
+  if ($("#dl-bar")) $("#dl-bar").style.width = `${S.downloaded * 100}%`;
+  if ($("#dl-pct")) $("#dl-pct").textContent = Math.round(S.downloaded * 100);
+}
+$("#feed").addEventListener("scroll", (e) => {
+  const f = e.target;
+  if (f.scrollHeight - f.scrollTop - f.clientHeight < 60) $("#newpill").hidden = true;
+});
+
+Demo.mount({
+  name: "Design C · Journey",
+  render,
+  acts: {
+    openToc() { J.toc = true; J.open = null; },
+    closeToc() { J.toc = false; },
+    openCh(i) { J.open = J.open === i ? null : i; },
+    playFromToc(i) { act.playNow(i); J.toc = false; },
+    toBottom() { const f = $("#feed"); f.scrollTop = f.scrollHeight; $("#newpill").hidden = true; },
+    restart() { act.restart(); J.toc = false; },
+  },
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,846 @@
+<!doctype html>
+<!-- Design A.3 · Map page: design A unchanged, plus a full map one swipe to the right. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A.3 · Map page</title>
+<style>
+/* ---- Demo engine: phone frame, demo controls, toast. Not part of the design. ---- */
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); -webkit-tap-highlight-color: transparent; }
+#phone { position: relative; height: 100vh; height: 100dvh; overflow: hidden; background: var(--bg); color: var(--fg); }
+.demo-tab { position: fixed; right: 0; top: 46%; z-index: 1001; writing-mode: vertical-rl; padding: 12px 6px;
+  border: 0; border-radius: 8px 0 0 8px; background: rgba(20, 22, 26, .78); color: #fff;
+  font: 600 11px/1 system-ui, sans-serif; letter-spacing: .12em; text-transform: uppercase; cursor: pointer; }
+.demo-scrim { position: fixed; inset: 0; z-index: 1002; background: rgba(0, 0, 0, .45); opacity: 0;
+  pointer-events: none; transition: opacity .2s; }
+.demo-panel { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1003; max-height: 82vh; overflow: auto;
+  padding: 14px 16px 24px; background: #1d2026; color: #e6e8eb; font: 14px/1.35 system-ui, sans-serif;
+  border-radius: 16px 16px 0 0; transform: translateY(105%); transition: transform .25s; }
+body.demo-open .demo-scrim { opacity: 1; pointer-events: auto; }
+body.demo-open .demo-panel { transform: none; }
+.demo-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.demo-head small { display: block; color: #9aa3ad; margin-top: 2px; }
+.demo-panel h4 { margin: 14px 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: #9aa3ad; }
+.demo-note { margin: 8px 0 0; color: #9aa3ad; font-size: 13px; }
+.demo-panel button { font: inherit; color: inherit; background: #2a2f37; border: 1px solid #3a414b;
+  border-radius: 8px; padding: 8px 10px; cursor: pointer; }
+.demo-panel button.on { border-color: #8ab4f8; background: #24344d; }
+.demo-scen { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.demo-scen button { text-align: left; }
+.demo-scen small { display: block; color: #9aa3ad; font-size: 12px; margin-top: 2px; }
+.demo-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.demo-row button { flex: 1 1 auto; }
+.demo-readout { margin-top: 12px; font: 12px/1.45 ui-monospace, Menlo, monospace; color: #9aa3ad; }
+.demo-x { flex: none; width: 36px; height: 36px; padding: 0 !important; }
+.demo-away { position: absolute; inset: 0; z-index: 900; display: grid; place-items: center; padding: 32px;
+  text-align: center; background: rgba(8, 9, 11, .92); color: #eef0f2; font: 16px/1.45 system-ui, sans-serif; }
+.demo-away button { margin-top: 12px; font: 600 16px system-ui, sans-serif; padding: 12px 18px; border-radius: 99px;
+  border: 0; background: #fff; color: #111; cursor: pointer; }
+.demo-toast { position: absolute; left: 16px; right: 16px; bottom: 116px; z-index: 950; padding: 12px 14px;
+  border-radius: 12px; background: #23262b; color: #f1f3f4; font: 15px/1.35 system-ui, sans-serif;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .3); }
+@media (min-width: 820px) {
+  html body { display: flex; align-items: center; justify-content: center; gap: 32px; min-height: 100vh; background: #2b2f36; }
+  #phone { flex: none; width: 390px; height: 844px; max-height: calc(100vh - 40px); border-radius: 36px;
+    box-shadow: 0 0 0 10px #0d0f12, 0 24px 70px rgba(0, 0, 0, .5); }
+  .demo-tab, .demo-scrim, .demo-x { display: none; }
+  .demo-panel { position: static; transform: none; width: 320px; max-height: calc(100vh - 40px); border-radius: 16px; }
+}
+/* ---- Design A tokens. Setup follows the theme; the car screen is always dark. ---- */
+:root {
+  --bg: #f3f5f4; --surface: #ffffff; --fg: #101816; --muted: #55625e; --line: #d8dfdc;
+  --accent: #0f766e; --accent-fg: #ffffff; --accent-soft: #d5efe9; --warn: #8a5a00;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b0f0e; --surface: #151b19; --fg: #eef3f1; --muted: #93a39e; --line: #26302d;
+    --accent: #5eead4; --accent-fg: #04302b; --accent-soft: #123a35; --warn: #e2c26d;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b0f0e; --surface: #151b19; --fg: #eef3f1; --muted: #93a39e; --line: #26302d;
+  --accent: #5eead4; --accent-fg: #04302b; --accent-soft: #123a35; --warn: #e2c26d;
+}
+#phone.car {
+  --bg: #050707; --surface: #121716; --fg: #f2f6f5; --muted: #8b9a96; --line: #222b29;
+  --accent: #5eead4; --accent-fg: #04302b; --accent-soft: #10302c; --warn: #e2c26d;
+}
+
+#phone { font: 17px/1.4 system-ui, sans-serif; }
+button { font: inherit; color: inherit; cursor: pointer; }
+
+/* Setup: a checklist, one big Start. */
+#setup { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.setup-scroll { flex: 1; overflow: auto; padding: 40px 20px 16px; }
+.kicker { margin: 0; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+#setup h1 { margin: 6px 0 4px; font-size: 32px; line-height: 1.1; letter-spacing: -.01em; }
+.meta { margin: 0; color: var(--muted); }
+#setup h2 { margin: 32px 0 12px; font-size: 15px; color: var(--muted); font-weight: 600; }
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.check { display: flex; gap: 14px; align-items: flex-start; padding: 16px; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 18px; }
+.tick { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  font-weight: 700; border: 2px solid var(--line); color: var(--muted); }
+.check.done .tick { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.check-t { flex: 1; min-width: 0; }
+.check-t b { display: block; }
+.check-t span { display: block; color: var(--muted); font-size: 15px; margin-top: 2px; }
+.check.done .check-t b { color: var(--muted); font-weight: 600; }
+.check-t .no-signal { color: var(--warn); }
+.act { flex: none; align-self: center; min-height: 48px; padding: 0 20px; border-radius: 99px; border: 0;
+  background: var(--accent); color: var(--accent-fg); font-weight: 700; }
+.act.quiet { background: transparent; border: 1.5px solid var(--line); color: var(--fg); }
+.prog { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; margin-top: 10px; }
+.prog > div { height: 100%; background: var(--accent); width: 0; transition: width .2s; }
+.link { margin: 20px 0 0; padding: 12px 0; background: none; border: 0; color: var(--accent); font-weight: 600; }
+.setup-foot { padding: 12px 20px 24px; border-top: 1px solid var(--line); background: var(--bg); }
+.go { width: 100%; min-height: 64px; border: 0; border-radius: 20px; background: var(--accent); color: var(--accent-fg);
+  font-size: 21px; font-weight: 800; }
+.fine { margin: 10px 0 0; font-size: 14px; color: var(--muted); text-align: center; }
+.warn-line { margin: 0 0 10px; font-size: 14px; color: var(--warn); text-align: center; }
+
+/* Car screen: one thing, very large. */
+#drive { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 16px 20px 20px; }
+.top { display: flex; gap: 8px; align-items: center; min-height: 32px; }
+.pill { font-size: 14px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.pill.warn { color: var(--warn); border: 1px solid currentColor; border-radius: 99px; padding: 2px 10px; }
+.top .spacer { flex: 1; }
+.hero { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 0; }
+.ring { --size: min(62vw, 34vh, 260px); position: relative; width: var(--size); height: var(--size); flex: none; }
+.ring > svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+.ring > svg circle { fill: none; stroke-width: 3.2; }
+.ring .track { stroke: var(--line); }
+.ring .val { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset .3s linear; }
+.ring-btn, .ring-txt { position: absolute; inset: 14%; border-radius: 50%; display: grid; place-items: center; }
+.ring-btn { border: 0; background: var(--accent-soft); color: var(--accent); }
+.ring-btn svg { width: 38%; height: 38%; position: static; transform: none; fill: currentColor; }
+.ring-txt { align-content: center; gap: 2px; }
+.huge { font-size: clamp(44px, 15vw, 64px); font-weight: 800; line-height: 1; letter-spacing: -.02em; }
+.unit { font-size: 16px; color: var(--muted); }
+.label { margin: 22px 0 4px; font-size: 14px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+.big { margin: 0; font-size: clamp(26px, 7.4vw, 32px); line-height: 1.15; letter-spacing: -.01em; }
+.sub { margin: 8px 0 0; color: var(--muted); font-size: 17px; }
+.then { margin: 12px 0 0; color: var(--muted); font-size: 15px; }
+.offer { margin-top: 12px; padding: 16px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); }
+.offer .label { margin: 0 0 4px; font-size: 12px; }
+.o-title { margin: 0; font-size: 19px; font-weight: 700; }
+.o-why { margin: 4px 0 0; color: var(--muted); font-size: 15px; }
+.o-row { display: flex; gap: 10px; margin-top: 12px; }
+.o-yes, .o-no { flex: 1; min-height: 52px; border-radius: 16px; font-weight: 700; }
+.o-yes { border: 0; background: var(--accent); color: var(--accent-fg); }
+.o-no { border: 1.5px solid var(--line); background: transparent; }
+.dock { display: flex; gap: 12px; margin-top: 14px; }
+.dock-btn { flex: 1; min-height: 64px; border-radius: 20px; border: 1.5px solid var(--line); background: var(--surface);
+  font-size: 18px; font-weight: 700; }
+
+/* All stories: a full-screen list, out of the way while driving. */
+#sheet { position: absolute; inset: 0; z-index: 10; overflow: auto; background: var(--bg); padding: 0 20px 24px; }
+.sheet-head { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 0 12px; background: var(--bg); }
+.sheet-head h2 { margin: 0; font-size: 24px; }
+.x { width: 52px; height: 52px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--surface); font-size: 20px; }
+.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.row { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; }
+.row-main { width: 100%; display: flex; gap: 14px; align-items: center; padding: 14px; background: none; border: 0; text-align: left; min-height: 64px; }
+.num { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-weight: 800;
+  border: 2px solid var(--line); color: var(--muted); }
+.row-t { min-width: 0; }
+.row-t b { display: block; }
+.row-t small { display: block; color: var(--muted); font-size: 14px; margin-top: 2px; }
+.row-t .note, .row-t .song-line { color: var(--accent); }
+.st-played .num { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
+.st-playing { border-color: var(--accent); }
+.st-playing .num { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.st-queued .num, .st-missed .num { border-color: var(--accent); color: var(--accent); }
+.st-skipped .num { border-style: dashed; }
+.st-played b, .st-skipped b { color: var(--muted); font-weight: 600; }
+.row-acts { display: flex; gap: 10px; padding: 0 14px 14px; }
+.sheet-more { display: flex; gap: 10px; margin-top: 20px; }
+.log { margin: 16px 0 0; padding-left: 20px; color: var(--muted); font-size: 14px; }
+.log li { margin-bottom: 6px; }
+/* ---- Dark route map, shared by A.1–A.3 (geometry from design B). Pins and the car keep a fixed
+   on-screen size at any zoom. ---- */
+.m { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.m-land { fill: #0d1312; }
+.m-park { fill: #10201a; }
+.m-sea { fill: #0a1922; }
+.m-minor { fill: none; stroke: #1b2523; stroke-linecap: round; }
+.m-edge { fill: none; stroke: #18211f; stroke-linecap: round; }
+.m-route { fill: none; stroke: #34413e; stroke-linecap: round; }
+.m-done { fill: none; stroke: var(--accent); stroke-linecap: round; }
+.m-start { fill: #6f7f7b; font: 600 11px system-ui, sans-serif; letter-spacing: .06em; text-transform: uppercase; }
+.m-pin .m-zone { fill: var(--accent); fill-opacity: 0; }
+.m-pdot { fill: #0d1312; stroke: #5d6d69; stroke-width: 2; }
+.m-n { fill: #c9d4d1; font: 700 12px system-ui, sans-serif; text-anchor: middle; }
+.m-lbl { fill: #a3b1ad; font: 600 13px system-ui, sans-serif; paint-order: stroke; stroke: #0d1312; stroke-width: 4px; }
+.m-pin.armed .m-pdot { stroke: var(--accent); }
+.m-pin.armed .m-zone { fill-opacity: .14; }
+.m-pin.playing .m-pdot { fill: var(--accent); stroke: var(--accent); }
+.m-pin.playing .m-n { fill: var(--accent-fg); }
+.m-pin.playing .m-zone { fill-opacity: .25; animation: m-pulse 1.6s ease-in-out infinite; }
+.m-pin.played .m-pdot { fill: #1b2523; stroke: #1b2523; }
+.m-pin.played .m-n, .m-pin.played .m-lbl, .m-pin.skipped .m-lbl { fill: #63736f; }
+.m-pin.skipped .m-pdot, .m-pin.missed .m-pdot { stroke-dasharray: 3 3; }
+.m-pin.queued .m-pdot, .m-pin.missed .m-pdot { stroke: var(--accent); }
+.m-pin.sel .m-pdot { stroke: #ffffff; stroke-width: 3; }
+.m-pin[data-act] { cursor: pointer; }
+@keyframes m-pulse { 50% { fill-opacity: .06; } }
+.m-song circle { fill: var(--accent); stroke: #0d1312; stroke-width: 2; }
+.m-song text { fill: var(--accent-fg); font: 700 11px system-ui, sans-serif; text-anchor: middle; }
+.m-halo { fill: #ffffff; fill-opacity: .13; }
+.m-dot { fill: #ffffff; }
+.m-arrow { fill: #050707; }
+
+/* ---- A.3: two pages side by side; the story page is A exactly. ---- */
+#drive { padding: 0; }
+.pager { position: absolute; inset: 0; display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory;
+  scrollbar-width: none; overscroll-behavior-x: contain; }
+.pager::-webkit-scrollbar { display: none; }
+.page { flex: none; width: 100%; height: 100%; position: relative; scroll-snap-align: start; scroll-snap-stop: always; }
+.page.glance { display: flex; flex-direction: column; padding: 16px 20px 20px; }
+.p2-map { position: absolute; inset: 0; }
+.p2-top { position: absolute; top: 0; left: 0; right: 0; display: flex; gap: 8px; align-items: center; padding: 16px 20px 32px;
+  background: linear-gradient(to bottom, rgba(5, 7, 7, .85), rgba(5, 7, 7, 0)); }
+.p2-bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 40px 20px 20px;
+  background: linear-gradient(to top, #050707 62%, rgba(5, 7, 7, 0)); }
+.p2-bottom .label { margin: 0 0 4px; }
+.p2-hint { margin: 12px 0 0; color: var(--muted); font-size: 13px; text-align: center; }
+.pg-btn { min-height: 44px; padding: 0 16px; border-radius: 99px; border: 1.5px solid var(--line); background: rgba(18, 23, 22, .85); font-weight: 700; }
+.dots { position: absolute; top: 30px; left: 50%; transform: translateX(-50%); display: flex; gap: 7px; z-index: 3; pointer-events: none; }
+.dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--line); transition: background .2s; }
+.dots span.on { background: var(--fg); }
+</style>
+</head>
+<body>
+<div id="phone">
+  <section id="setup"></section>
+  <section id="drive" hidden></section>
+  <section id="sheet" hidden></section>
+</div>
+<script>
+/* ======================================================================
+   Demo engine, identical in all three designs: a made-up tour, a
+   simulated drive and the demo controls. Not part of any design.
+   It follows the real player's rules (site/player/app.js): stops play in
+   order, a stop that triggers while another plays waits its turn, no GPS
+   reaches the page while it's in the background, and stops passed
+   meanwhile are offered, never auto-played.
+   ====================================================================== */
+const TOUR = {
+  title: "Coast Road to Cape Wren",
+  start: "Port Ellis",
+  km: 96,
+  mb: 38,
+  stops: [
+    { n: 1, title: "The Bridge That Floated", place: "Crossing Larkspur Bridge", short: "Larkspur Bridge", at: 8, dur: 172, art: "🌉",
+      teaser: "Why the first bridge here was built on barrels.",
+      kids: "If you had to build a bridge out of things in this car, what would you use?" },
+    { n: 2, title: "The Town with Two Names", place: "Entering Millbrook", short: "Millbrook", at: 21, dur: 181, art: "🏘️",
+      teaser: "Two mapmakers, one town, and a forty-year argument.",
+      kids: "If our street got a new name, what should it be?" },
+    { n: 3, title: "Orchards on the Hill", place: "Passing the apple country", short: "Apple country", at: 34, dur: 180, art: "🍎",
+      teaser: "A whole valley of trees, grown from one pip.",
+      kids: "Count the orchards until the next story. Who sees the most?" },
+    { n: 4, title: "The Postman Who Swam", place: "Gull Point lookout", short: "Gull Point", at: 47, dur: 185, art: "✉️",
+      teaser: "Mail day on the island meant a very cold swim.",
+      kids: "What's the furthest you'd go to deliver one letter?" },
+    { n: 5, title: "Children of the Lighthouse", place: "Coming into Wren Bay", short: "Wren Bay", at: 49.5, dur: 176, art: "⛵",
+      teaser: "School was a rowing boat away.",
+      kids: "Would you like to live in a lighthouse? What would you miss?" },
+    { n: 6, title: "The Shipwreck Library", place: "Driving past Driftwood Cove", short: "Driftwood Cove", at: 64, dur: 190, art: "📚",
+      teaser: "A cargo of books washed ashore, and the town kept them.",
+      kids: "If a crate washed up on the beach, what do you hope is inside?",
+      song: { title: "Saltwater Sky", artist: "The Paper Lanterns", length: 214, why: "A made-up song about this stretch of coast." } },
+    { n: 7, title: "The Light at the End of the Land", place: "Arriving at Cape Wren", short: "Cape Wren", at: 92, dur: 200, art: "🌅",
+      teaser: "Why the lighthouse wears stripes.",
+      kids: "Invent a secret signal with a torch. What does it mean?" },
+  ],
+};
+const TRIGGER_KM = 0.6; // a stop starts this far before its point
+const LOOKAHEAD = 2; // like tour.json `lookahead`
+const START_TIME = 9 * 3600 + 5 * 60; // the simulated drive leaves at 9:05
+
+const S = { rate: 20, frozen: false, theme: "auto", rev: 0 };
+let seq = 0;
+function reset() {
+  Object.assign(S, {
+    phase: "setup", downloaded: 0, downloading: false, located: false, installed: false, online: true,
+    km: 0, speed: 80, clock: 0, away: false, cursor: 0, status: TOUR.stops.map(() => "upcoming"),
+    playing: null, queue: [], missed: [], song: null, feed: [], near: new Set(),
+  });
+  bump();
+}
+function bump() { S.rev++; }
+function emit(kind, i = null, extra = {}) { S.feed.push({ id: ++seq, kind, i, clock: S.clock, km: S.km, ...extra }); bump(); }
+
+const stop = (i) => TOUR.stops[i];
+function nextUp() { for (let i = S.cursor; i < TOUR.stops.length; i++) if (S.status[i] === "upcoming") return i; return null; }
+function distTo(i) { return Math.max(0, stop(i).at - TRIGGER_KM - S.km); }
+function minsTo(i) { return (distTo(i) / S.speed) * 60; }
+function heard() { return S.status.filter((s) => s === "played").length; }
+
+function checkTriggers() {
+  const win = [];
+  for (let i = S.cursor; i < TOUR.stops.length && win.length < LOOKAHEAD; i++) if (S.status[i] === "upcoming") win.push(i);
+  for (const i of win) if (S.km >= stop(i).at - TRIGGER_KM) return trigger(i, "gps");
+  const n = nextUp();
+  if (n != null && !S.near.has(n) && distTo(n) <= 3) { S.near.add(n); emit("near", n); }
+}
+function trigger(i, cause) {
+  for (let j = S.cursor; j < i; j++) if (S.status[j] === "upcoming") S.status[j] = "skipped";
+  S.cursor = Math.max(S.cursor, i + 1);
+  if (S.playing) { S.queue.push(i); S.status[i] = "queued"; emit("queued", i); }
+  else play(i, cause);
+}
+function play(i, cause) {
+  S.near.add(i);
+  S.playing = { i, t: 0, paused: false };
+  S.status[i] = "playing";
+  S.song = null;
+  S.missed = S.missed.filter((m) => m !== i);
+  emit("play", i, { cause });
+}
+function finish() {
+  const i = S.playing.i;
+  S.status[i] = "played";
+  S.playing = null;
+  emit("done", i);
+  if (S.queue.length) return play(S.queue.shift(), "queue");
+  const song = stop(i).song, n = nextUp();
+  if (song && (n == null || minsTo(n) * 60 > song.length + 60)) { S.song = i; emit("song", i); }
+}
+function step(dt) {
+  if (S.phase === "drive") {
+    S.km = Math.min(TOUR.km, S.km + (S.speed / 3600) * dt);
+    S.clock += dt;
+    if (!S.away) checkTriggers();
+  }
+  if (S.playing && !S.playing.paused && (S.playing.t += dt) >= stop(S.playing.i).dur) finish();
+  if (S.phase === "drive" && S.km >= TOUR.km && !S.playing) { S.phase = "done"; emit("arrive"); }
+}
+function setAway(on) {
+  if (on === S.away) return;
+  S.away = on;
+  emit(on ? "away" : "back");
+  if (!on && S.phase === "drive")
+    for (let i = S.cursor; i < TOUR.stops.length; i++)
+      if (S.status[i] === "upcoming" && S.km > stop(i).at + 0.3) {
+        S.status[i] = "missed"; S.missed.push(i); S.cursor = i + 1; emit("missed", i);
+      }
+}
+
+/** What the design's buttons do (data-act="name" data-i="index"). */
+const act = {
+  download() {
+    if (S.downloaded >= 1 || S.downloading) return;
+    if (!S.online) return toast("No signal here. Try again where you have coverage.");
+    S.downloading = true; bump();
+  },
+  allowLocation() { S.located = true; bump(); },
+  install() { S.installed = true; bump(); toast("Added to the home screen (simulated)."); },
+  start() { S.located = true; S.phase = "drive"; emit("start"); },
+  pause() { if (S.playing) { S.playing.paused = !S.playing.paused; bump(); } },
+  skip() {
+    if (!S.playing) return;
+    const i = S.playing.i;
+    S.status[i] = "skipped"; S.playing = null; emit("skip", i);
+    if (S.queue.length) play(S.queue.shift(), "queue");
+  },
+  playNow(i) {
+    if (S.playing) { const p = S.playing.i; S.status[p] = S.playing.t > stop(p).dur * 0.9 ? "played" : "skipped"; S.playing = null; }
+    for (let j = S.cursor; j < i; j++) if (S.status[j] === "upcoming") S.status[j] = "skipped";
+    const later = S.queue.filter((q) => q > i);
+    S.queue.forEach((q) => (S.status[q] = q < i ? "skipped" : "upcoming"));
+    S.queue = [];
+    S.cursor = Math.max(S.cursor, i + 1);
+    if (later.length) S.cursor = Math.min(S.cursor, ...later);
+    S.missed = S.missed.filter((m) => m !== i);
+    play(i, "manual");
+  },
+  playMissed(i) {
+    S.missed = S.missed.filter((m) => m !== i);
+    if (S.playing) { S.queue.push(i); S.status[i] = "queued"; emit("queued", i); } else play(i, "missed");
+  },
+  dismissMissed(i) { S.missed = S.missed.filter((m) => m !== i); S.status[i] = "skipped"; emit("skip", i); },
+  openSong(i) { const s = stop(i).song; S.song = null; bump(); toast(`Would open Spotify: “${s.title}” by ${s.artist}.`); },
+  dismissSong() { S.song = null; bump(); },
+  navigate(i) { toast(`Would open Google Maps: stops ${i + 1}–${TOUR.stops.length}, then home.`); },
+  restart() {
+    const keep = { downloaded: S.downloaded, located: S.located, installed: S.installed };
+    reset(); Object.assign(S, keep);
+  },
+};
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const fmtKm = (km) => (km < 1 ? `${Math.max(50, Math.round(km * 20) * 50)} m` : km < 10 ? `${km.toFixed(1)} km` : `${Math.round(km)} km`);
+const fmtMins = (m) => (m < 1 ? "under a minute" : m < 60 ? `${Math.round(m)} min` : `${Math.floor(m / 60)} h ${Math.round(m % 60)} min`);
+function fmtClock(c) {
+  const t = START_TIME + c, h = Math.floor(t / 3600) % 24, m = Math.floor(t / 60) % 60;
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")}`;
+}
+
+let toastTimer;
+function toast(msg) {
+  const t = document.querySelector(".demo-toast");
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (t.hidden = true), 3000);
+}
+
+/* ---- Scenarios: each resets, then fast-forwards the same simulation. ---- */
+function ff(toKm, untilDone) {
+  for (let guard = 1e5; guard-- && (S.km < toKm - 1e-9 || (untilDone && S.phase !== "done")); ) step(1);
+}
+function ready() { S.downloaded = 1; S.located = true; S.installed = true; }
+function startDrive() { ready(); act.start(); }
+const SCENARIOS = [
+  ["Night before", "Setting up at home. Nothing saved yet.", () => {}],
+  ["No signal", "Signal dropped halfway through saving.", () => { S.downloaded = 0.45; S.online = false; S.located = true; }],
+  ["Ready to go", "Saved and allowed, not started.", ready],
+  ["Cruising", "Between stories, 6 km to the next.", () => { startDrive(); ff(27); }],
+  ["Story playing", "Story 3, 40% through.", () => { startDrive(); ff(35); }],
+  ["Two stories close", "Story 5 waits for story 4.", () => { startDrive(); ff(49.3); }],
+  ["Back from Maps", "Screen was away past story 3.", () => { startDrive(); ff(29); setAway(true); ff(37); setAway(false); }],
+  ["Song offer", "Story 6 ended; a long gap ahead.", () => { startDrive(); ff(69); }],
+  ["Arrived", "End of the road.", () => { startDrive(); ff(TOUR.km, true); }],
+];
+function scenario(k) { reset(); SCENARIOS[k][2](); S.scenario = k; bump(); }
+
+/* ---- Demo controls ---- */
+function buildPanel(name) {
+  document.body.insertAdjacentHTML("beforeend", `
+<button class="demo-tab" data-demo="open">Demo</button>
+<div class="demo-scrim" data-demo="close"></div>
+<aside class="demo-panel" aria-label="Demo controls">
+  <div class="demo-head"><div><b>Demo controls</b><small>${name}</small></div>
+    <button class="demo-x" data-demo="close" aria-label="Close">✕</button></div>
+  <p class="demo-note">A made-up tour and a simulated drive. These controls aren't part of the design.</p>
+  <h4>Jump to a moment</h4>
+  <div class="demo-scen">${SCENARIOS.map((s, k) => `<button data-demo="scen" data-k="${k}"><b>${s[0]}</b><small>${s[1]}</small></button>`).join("")}</div>
+  <h4>Simulation</h4>
+  <div class="demo-row"><button data-demo="freeze"></button>${[5, 20, 60].map((r) => `<button data-demo="rate" data-r="${r}">×${r}</button>`).join("")}</div>
+  <div class="demo-row" style="margin-top:6px"><button data-demo="away"></button><button data-demo="online"></button></div>
+  <h4>Theme</h4>
+  <div class="demo-row">${["auto", "light", "dark"].map((t) => `<button data-demo="theme" data-t="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join("")}</div>
+  <div class="demo-readout"></div>
+</aside>`);
+  document.querySelector("#phone").insertAdjacentHTML("beforeend", `
+<div class="demo-away" hidden><div>
+  <p><b>Simulated: you switched to Google Maps</b> (or the screen locked).</p>
+  <p>Chrome sends this page no GPS meanwhile. A story that's already playing keeps going.</p>
+  <button data-demo="away">Come back to the tour</button></div></div>
+<div class="demo-toast" hidden></div>`);
+}
+function renderPanel(full) {
+  const q = (s) => document.querySelector(s);
+  q(".demo-readout").textContent =
+    `car ${S.km.toFixed(1)} / ${TOUR.km} km · ${fmtClock(S.clock)} · ${S.phase}` +
+    (S.playing ? ` · playing ${S.playing.i + 1} at ${fmtTime(S.playing.t)}` : "") +
+    (S.queue.length ? ` · queued ${S.queue.map((i) => i + 1).join(",")}` : "");
+  if (!full) return;
+  document.querySelectorAll("[data-demo=scen]").forEach((b) => b.classList.toggle("on", +b.dataset.k === S.scenario));
+  document.querySelectorAll("[data-demo=rate]").forEach((b) => b.classList.toggle("on", +b.dataset.r === S.rate));
+  document.querySelectorAll("[data-demo=theme]").forEach((b) => b.classList.toggle("on", b.dataset.t === S.theme));
+  q(".demo-panel [data-demo=freeze]").textContent = S.frozen ? "▶ Run time" : "❚❚ Freeze time";
+  q(".demo-panel [data-demo=away]").textContent = S.away ? "Come back to the tour" : "Switch to Maps";
+  q(".demo-panel [data-demo=online]").textContent = S.online ? "Lose signal" : "Get signal back";
+  q(".demo-away").hidden = !S.away;
+  if (S.theme === "auto") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = S.theme;
+}
+
+let UI = { render() {}, acts: {} };
+document.addEventListener("click", (e) => {
+  const d = e.target.closest("[data-demo]");
+  if (d) {
+    const k = d.dataset.demo, body = document.body.classList;
+    if (k === "open") body.add("demo-open");
+    else if (k === "close") body.remove("demo-open");
+    else if (k === "scen") { scenario(+d.dataset.k); body.remove("demo-open"); }
+    else if (k === "rate") S.rate = +d.dataset.r;
+    else if (k === "freeze") S.frozen = !S.frozen;
+    else if (k === "away") { setAway(!S.away); body.remove("demo-open"); }
+    else if (k === "online") S.online = !S.online;
+    else if (k === "theme") S.theme = d.dataset.t;
+    bump();
+    return;
+  }
+  const b = e.target.closest("[data-act]");
+  if (!b || b.disabled) return;
+  const name = b.dataset.act, fn = UI.acts[name] || act[name];
+  if (!fn) return console.warn("no action", name);
+  fn(b.dataset.i == null ? undefined : Number(b.dataset.i));
+  bump();
+});
+
+let lastTick = performance.now(), lastRev = -1;
+function loop() {
+  const now = performance.now(), dt = Math.min(0.5, (now - lastTick) / 1000);
+  lastTick = now;
+  if (!S.frozen) {
+    if (S.downloading) {
+      if (!S.online) { S.downloading = false; bump(); }
+      else if ((S.downloaded = Math.min(1, S.downloaded + dt / 4)) >= 1) { S.downloading = false; bump(); }
+    }
+    for (let sim = dt * S.rate; sim > 0; sim -= 1) step(Math.min(1, sim));
+  }
+  const full = S.rev !== lastRev;
+  lastRev = S.rev;
+  UI.render(full);
+  renderPanel(full);
+}
+const Demo = {
+  mount(ui) {
+    UI = { acts: {}, ...ui };
+    buildPanel(ui.name);
+    scenario(0);
+    loop();
+    setInterval(loop, 100);
+  },
+};
+</script>
+<script>
+/* ============ Design A base, shared by A.1–A.3: setup, car screen pieces, story list ============ */
+const $ = (s) => document.querySelector(s);
+const phone = $("#phone");
+const A = { sheet: false, open: null, log: false };
+const C = 2 * Math.PI * 46;
+const ICON = {
+  play: '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>',
+  pause: '<svg viewBox="0 0 24 24"><path d="M6 4h4.5v16H6zM13.5 4H18v16h-4.5z"/></svg>',
+};
+const STATE = { upcoming: "Coming up", playing: "Playing now", queued: "Next, after this one", played: "Heard",
+  skipped: "Skipped", missed: "Passed while away" };
+
+function check(done, n, title, why, button, extra = "") {
+  return `<li class="check ${done ? "done" : ""}"><span class="tick">${done ? "✓" : n}</span>
+    <div class="check-t"><b>${title}</b><span>${why}</span>${extra}</div>${button}</li>`;
+}
+function setupHTML() {
+  const dl = S.downloaded >= 1, pct = Math.round(S.downloaded * 100);
+  const dlWhy = dl ? "Saved. The tour works with no signal."
+    : S.downloading ? `Saving… <span id="dl-pct">${pct}</span>%`
+    : !S.online && S.downloaded > 0 ? `<span class="no-signal">No signal. ${pct}% saved; finish where you have coverage.</span>`
+    : `${TOUR.mb} MB, best on Wi-Fi. Then the tour works with no signal.`;
+  const dlBtn = dl || S.downloading ? "" : `<button class="act" data-act="download">${S.downloaded > 0 ? "Resume" : "Save"}</button>`;
+  const dlBar = dl || (!S.downloading && !S.downloaded) ? "" : `<div class="prog"><div id="dl-bar" style="width:${pct}%"></div></div>`;
+  return `
+  <div class="setup-scroll">
+    <p class="kicker">Driving audio tour</p>
+    <h1>${TOUR.title}</h1>
+    <p class="meta">${TOUR.stops.length} stories · ${TOUR.km} km · about 1 h 15 min</p>
+    <h2>Get ready before you leave</h2>
+    <ol class="checks">
+      ${check(dl, 1, "Save the stories to this phone", dlWhy, dlBtn, dlBar)}
+      ${check(S.located, 2, "Let stories start by themselves", "Uses your location only while this page is open.",
+        S.located ? "" : `<button class="act" data-act="allowLocation">Allow</button>`)}
+      ${check(S.installed, 3, "Add to home screen", "Optional. Opens full screen, like an app.",
+        S.installed ? "" : `<button class="act quiet" data-act="install">Add</button>`)}
+    </ol>
+    <button class="link" data-act="openSheet">See all ${TOUR.stops.length} stories →</button>
+  </div>
+  <div class="setup-foot">
+    ${dl ? "" : `<p class="warn-line">Not saved yet: stories will need phone signal.</p>`}
+    <button class="go" data-act="start">Start the tour</button>
+    <p class="fine">Tap Start before you drive off. The screen stays on; nobody needs to touch it after that.</p>
+  </div>`;
+}
+
+function ringFrac() {
+  if (S.playing) return S.playing.t / stop(S.playing.i).dur;
+  if (S.phase === "done") return 1;
+  const n = nextUp();
+  if (n == null) return 1;
+  const from = n > 0 ? stop(n - 1).at - TRIGGER_KM : 0, to = stop(n).at - TRIGGER_KM;
+  return Math.min(1, Math.max(0, (S.km - from) / (to - from)));
+}
+function statusHTML() {
+  const issues = [];
+  if (S.downloaded < 1) issues.push(S.online ? "Needs signal" : "No signal");
+  if (!S.located) issues.push("GPS off");
+  return issues.length ? issues.map((t) => `<span class="pill warn">${t}</span>`).join("")
+    : `<span class="pill"><span class="dot"></span>All set</span>`;
+}
+function offerHTML() {
+  if (S.missed.length) {
+    const i = S.missed[0], s = stop(i);
+    return `<div class="offer"><p class="label">Passed while you were away</p>
+      <p class="o-title">${s.n} · ${s.title}</p>
+      <div class="o-row"><button class="o-yes" data-act="playMissed" data-i="${i}">Play it</button>
+      <button class="o-no" data-act="dismissMissed" data-i="${i}">Skip</button></div></div>`;
+  }
+  if (S.song != null) {
+    const sg = stop(S.song).song;
+    return `<div class="offer"><p class="label">A song for this stretch</p>
+      <p class="o-title">${esc(sg.title)} · ${esc(sg.artist)}</p><p class="o-why">${esc(sg.why)} For passengers to start.</p>
+      <div class="o-row"><button class="o-yes" data-act="openSong" data-i="${S.song}">Play on Spotify</button>
+      <button class="o-no" data-act="dismissSong">No thanks</button></div></div>`;
+  }
+  return "";
+}
+/** The pieces of A's car screen: ring centre, caption, the left dock button, the queued line. */
+function glanceParts() {
+  const p = S.playing, n = nextUp();
+  let center, cap, left;
+  if (p) {
+    const s = stop(p.i);
+    center = `<button class="ring-btn" data-act="pause" aria-label="${p.paused ? "Play" : "Pause"}">${p.paused ? ICON.play : ICON.pause}</button>`;
+    cap = `<p class="label">${p.paused ? "Paused" : "Now playing"} · ${s.n} of ${TOUR.stops.length}</p>
+      <h1 class="big">${s.title}</h1><p class="sub"><span id="left"></span> left</p>`;
+    left = `<button class="dock-btn" data-act="skip">Skip story</button>`;
+  } else if (S.phase === "done") {
+    center = `<div class="ring-txt"><span class="huge">✓</span></div>`;
+    cap = `<p class="label">You've arrived</p><h1 class="big">${stop(TOUR.stops.length - 1).short}</h1>
+      <p class="sub">${heard()} of ${TOUR.stops.length} stories heard</p>`;
+    left = `<button class="dock-btn" data-act="restart">Start over</button>`;
+  } else if (n != null) {
+    const s = stop(n);
+    center = `<div class="ring-txt"><span class="huge" id="dist"></span><span class="unit" id="mins"></span></div>`;
+    cap = `<p class="label">Next story</p><h1 class="big">${s.title}</h1><p class="sub">${s.place}</p>`;
+    left = `<button class="dock-btn" data-act="playNow" data-i="${n}">Play it now</button>`;
+  } else {
+    center = `<div class="ring-txt"><span class="unit">No more stories</span></div>`;
+    cap = `<p class="label">Nearly there</p><h1 class="big">${stop(TOUR.stops.length - 1).short}</h1>`;
+    left = "";
+  }
+  const q = S.queue.length ? `<p class="then">Then ${stop(S.queue[0]).n} · ${stop(S.queue[0]).title}</p>` : "";
+  return { center, cap, left, q };
+}
+const ringSVG = () => `<svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="46"/>
+  <circle class="val" id="ring" cx="50" cy="50" r="46" stroke-dasharray="${C}" stroke-dashoffset="${C}"/></svg>`;
+/** A's car screen exactly as in design A; `extra` goes at the right of the status row. */
+function glanceHTML(extra = "") {
+  const g = glanceParts();
+  return `<div class="top">${statusHTML()}<span class="spacer"></span>${extra}</div>
+  <div class="hero"><div class="ring">${ringSVG()}${g.center}</div>${g.cap}${g.q}</div>
+  ${offerHTML()}
+  <div class="dock">${g.left}<button class="dock-btn" data-act="openSheet">All stories</button></div>`;
+}
+function describe(e) {
+  const s = e.i != null ? `${stop(e.i).n} · ${stop(e.i).title}` : "";
+  const cause = { gps: "GPS reached its place", manual: "tapped Play now", queue: "after the one before", missed: "chosen after passing it" };
+  return {
+    start: "Tour started", near: `${s} within 3 km`, play: `Played ${s} (${cause[e.cause]})`, queued: `${s} waited for the story playing`,
+    done: `Finished ${s}`, skip: `Skipped ${s}`, song: `Offered the song after ${s}`, missed: `${s} passed while away`,
+    away: "Page in the background: no GPS", back: "Back on the page", arrive: "Arrived",
+  }[e.kind];
+}
+function sheetHTML() {
+  return `<div class="sheet-head"><h2>Stories</h2><button class="x" data-act="closeSheet" aria-label="Close">✕</button></div>
+  <ol class="list">${TOUR.stops.map((s, i) => `
+    <li class="row st-${S.status[i]}">
+      <button class="row-main" data-act="toggle" data-i="${i}"><span class="num">${s.n}</span>
+        <span class="row-t"><b>${s.title}${V.songMarks && s.song ? ` <span class="note" aria-label="has a song">♪</span>` : ""}</b><small>${s.place} · ${Math.round(s.dur / 60)} min · ${STATE[S.status[i]]}</small>${V.songMarks && s.song ? `<small class="song-line">♪ Then a song: ${esc(s.song.title)} · ${esc(s.song.artist)}</small>` : ""}</span></button>
+      ${A.open === i ? `<div class="row-acts"><button class="o-yes" data-act="playFromList" data-i="${i}">Play now</button>
+        <button class="o-no" data-act="navigate" data-i="${i}">Navigate from here</button></div>` : ""}
+    </li>`).join("")}</ol>
+  <div class="sheet-more"><button class="o-no" data-act="toggleLog">${A.log ? "Hide the log" : "Why did that play?"}</button>
+    <button class="o-no" data-act="restart">Start over</button></div>
+  ${A.log ? `<ol class="log">${S.feed.slice().reverse().map((e) => `<li><b>${fmtClock(e.clock)}</b> ${describe(e)}</li>`).join("")}</ol>` : ""}`;
+}
+
+/* The variant draws the car screen (V.drive) and updates its map every tick (V.tick). */
+let V = {};
+function render(full) {
+  if (full) {
+    const driving = S.phase !== "setup";
+    phone.classList.toggle("car", driving);
+    $("#setup").hidden = driving;
+    $("#drive").hidden = !driving;
+    if (driving) V.drive();
+    else $("#setup").innerHTML = setupHTML();
+    const sheet = $("#sheet"), top = sheet.scrollTop;
+    sheet.hidden = !A.sheet;
+    if (A.sheet) { sheet.innerHTML = sheetHTML(); sheet.scrollTop = top; }
+  }
+  if (S.phase !== "setup") V.tick?.(full);
+  const bar = $("#dl-bar"), pct = $("#dl-pct");
+  if (bar) bar.style.width = `${S.downloaded * 100}%`;
+  if (pct) pct.textContent = Math.round(S.downloaded * 100);
+  const ring = $("#ring");
+  if (ring) ring.style.strokeDashoffset = C * (1 - ringFrac());
+  const left = $("#left");
+  if (left && S.playing) left.textContent = fmtTime(stop(S.playing.i).dur - S.playing.t);
+  const n = nextUp(), dist = $("#dist");
+  if (dist && n != null) {
+    const d = distTo(n);
+    dist.textContent = d < 1 ? Math.max(50, Math.round(d * 20) * 50) : d.toFixed(d < 10 ? 1 : 0);
+    $("#mins").textContent = `${d < 1 ? "metres" : "km"} · ${fmtMins(minsTo(n))}`;
+  }
+}
+function mountA(name, variant) {
+  V = variant;
+  Demo.mount({
+    name,
+    render,
+    acts: {
+      openSheet() { A.sheet = true; A.open = null; },
+      closeSheet() { A.sheet = false; },
+      toggle(i) { A.open = A.open === i ? null : i; },
+      playFromList(i) { act.playNow(i); A.sheet = false; },
+      toggleLog() { A.log = !A.log; },
+      restart() { act.restart(); A.sheet = false; },
+      ...(variant.acts || {}),
+    },
+  });
+}
+</script>
+<script>
+/* ============ Dark route map, shared by A.1–A.3 (geometry from design B) ============ */
+const ROUTE_D = "M48 598 C 74 556, 132 560, 142 512 S 92 434, 128 392 S 238 384, 250 334 S 170 256, 210 214 S 318 206, 318 160 S 266 96, 322 56";
+const LABEL_SIDE = ["r", "l", "r", "l", "r", "l", "l"];
+const MAP_SVG = `<svg class="m" preserveAspectRatio="xMidYMid slice" aria-label="Route map">
+  <rect class="m-land" x="-700" y="-700" width="1800" height="2000"/>
+  <path class="m-park" d="M30 260 C 60 210, 140 220, 150 270 S 90 340, 50 320 S 10 290, 30 260 Z"/>
+  <path class="m-park" d="M210 420 C 250 400, 300 420, 290 470 S 220 500, 205 465 Z"/>
+  <path class="m-sea" d="M372 -700 L 1100 -700 L 1100 1300 L 400 1300 C 380 900, 400 760, 372 620 C 352 520, 332 470, 352 400
+    C 368 340, 344 280, 316 230 C 300 200, 318 150, 346 130 C 362 110, 336 70, 350 40 C 360 0, 380 -100, 372 -700 Z"/>
+  <path class="m-minor" d="M60 560 L 20 470 M150 495 L 210 560 M120 380 L 30 410 M240 330 L 330 360 M200 215 L 120 140 M300 165 L 250 110"/>
+  <path class="m-edge" d="${ROUTE_D}"/><path class="m-route" d="${ROUTE_D}"/><path class="m-done" d="${ROUTE_D}"/>
+  <g class="m-start-g"><text class="m-start" x="12" dy=".35em">${TOUR.start}</text></g>
+  <g class="m-pins"></g>
+  <g class="m-car"><circle class="m-halo" r="20"/><circle class="m-dot" r="10"/><path class="m-arrow" d="M0 -5 L4 4 L0 2 L-4 4 Z"/></g>
+</svg>`;
+
+/** A stop GPS may trigger next is "armed", as in design B. */
+function pinState(i) {
+  const st = S.status[i];
+  return st === "upcoming" && S.phase === "drive" && nextUp() === i ? "armed" : st;
+}
+
+/**
+ * Draw the map into `el` and return a controller. Options (all changeable later on `m.o`):
+ * near: smallest view width in map units when following; fh: the fraction of the height, from
+ * the top, that the followed part must fit in (the rest is under text); tap: a data-act name for pins.
+ */
+function makeMap(el, o = {}) {
+  el.insertAdjacentHTML("afterbegin", MAP_SVG);
+  const svg = el.querySelector("svg.m"), route = svg.querySelector(".m-route"), L = route.getTotalLength();
+  const at = (km) => route.getPointAtLength(L * Math.min(1, Math.max(0, km / TOUR.km)));
+  const P = TOUR.stops.map((s) => at(s.at)), start = at(0);
+  svg.querySelector(".m-pins").innerHTML = TOUR.stops.map((s, i) => {
+    const r = LABEL_SIDE[i] === "r";
+    return `<g class="m-pin" ${o.tap ? `data-act="${o.tap}" data-i="${i}"` : ""}><circle class="m-zone" r="26"/><circle class="m-pdot" r="13"/>
+      <text class="m-n" dy=".35em">${s.n}</text>${o.songs && s.song ? `<g class="m-song" transform="translate(12 -12)"><circle r="8.5"/><text dy=".35em">♪</text></g>` : ""}${o.labels === false ? "" : `<text class="m-lbl" x="${r ? 19 : -19}" dy=".35em" text-anchor="${r ? "start" : "end"}">${s.short}</text>`}</g>`;
+  }).join("");
+  const pins = [...svg.querySelectorAll(".m-pin")], car = svg.querySelector(".m-car"), startG = svg.querySelector(".m-start-g");
+  const strokes = [[".m-edge", 11], [".m-route", 7], [".m-done", 7], [".m-minor", 3]].map(([s, w]) => [svg.querySelector(s), w]);
+  let cam = null;
+
+  /** Where the camera wants to be: [centre x, centre y, view width]. */
+  function target(ar) {
+    const fh = m.o.fh ?? 1, near = m.o.near ?? 160;
+    if (m.mode === "route" || S.phase !== "drive") return [185, 327 + (0.5 - fh / 2) * Math.max(340, 600 / (ar * fh)) * ar, Math.max(340, 600 / (ar * fh))];
+    if (m.sel != null) return [P[m.sel].x, P[m.sel].y, near];
+    const p = at(S.km), f = S.playing ? S.playing.i : nextUp();
+    const q = f == null ? p : P[f];
+    const vw = Math.min(420, Math.max(near, Math.abs(q.x - p.x) + 90, (Math.abs(q.y - p.y) + 90) / (ar * fh)));
+    return [(p.x + q.x) / 2, (p.y + q.y) / 2 + (0.5 - fh / 2) * vw * ar, vw];
+  }
+
+  const m = {
+    o, mode: "follow", sel: null,
+    /** Call every tick; `full` after a state change (pin colours). `snap` skips the glide. */
+    update(full, snap) {
+      const w = el.clientWidth, h = el.clientHeight;
+      if (!w || !h) return;
+      const ar = h / w, t = target(ar);
+      cam = cam && !snap ? cam.map((v, k) => v + (t[k] - v) * 0.16) : t;
+      const [cx, cy, vw] = cam, vh = vw * ar, k = vw / w;
+      svg.setAttribute("viewBox", `${(cx - vw / 2).toFixed(2)} ${(cy - vh / 2).toFixed(2)} ${vw.toFixed(2)} ${vh.toFixed(2)}`);
+      for (const [path, px] of strokes) path.style.strokeWidth = px * k;
+      strokes[2][0].style.strokeDasharray = `${(L * S.km) / TOUR.km} ${L}`;
+      const p = at(S.km), q = at(S.km + 0.4), ang = (Math.atan2(q.y - p.y, q.x - p.x) * 180) / Math.PI + 90;
+      car.setAttribute("transform", `translate(${p.x.toFixed(2)} ${p.y.toFixed(2)}) scale(${k.toFixed(4)}) rotate(${ang.toFixed(0)})`);
+      car.style.display = S.phase === "setup" ? "none" : "";
+      startG.setAttribute("transform", `translate(${start.x} ${start.y}) scale(${k.toFixed(4)})`);
+      pins.forEach((g, i) => {
+        g.setAttribute("transform", `translate(${P[i].x.toFixed(2)} ${P[i].y.toFixed(2)}) scale(${k.toFixed(4)})`);
+        if (full) g.setAttribute("class", `m-pin ${pinState(i)}${m.sel === i ? " sel" : ""}`);
+      });
+    },
+  };
+  return m;
+}
+</script>
+<script>
+/* ======== A.3 · Map page: A's screen as page one, a full map as page two ======== */
+$("#drive").innerHTML = `<div class="pager" id="pager"><section class="page glance" id="p1"></section>
+  <section class="page" id="p2"><div class="p2-map" id="p2map"></div><div id="p2ui"></div></section></div>
+  <div class="dots"><span class="on"></span><span></span></div>`;
+const map = makeMap($("#p2map"), { near: 210, tap: "pin", songs: true });
+const pager = $("#pager");
+const P3 = { sel: null, key: "", phase: null };
+const goto = (k, smooth = true) => pager.scrollTo({ left: k * pager.clientWidth, behavior: smooth ? "smooth" : "auto" });
+pager.addEventListener("scroll", () => {
+  const k = Math.round(pager.scrollLeft / pager.clientWidth);
+  document.querySelectorAll(".dots span").forEach((d, j) => d.classList.toggle("on", j === k));
+});
+
+function p2HTML() {
+  const i = P3.sel, n = nextUp();
+  let card;
+  const songLine = (k) => stop(k).song ? `<p class="o-why song-line">♪ Then a song: ${esc(stop(k).song.title)} · ${esc(stop(k).song.artist)}</p>` : "";
+  if (i != null)
+    card = `<div class="offer"><p class="label">Story ${stop(i).n} · ${STATE[S.status[i]]}</p><p class="o-title">${stop(i).title}</p>
+      <p class="o-why">${stop(i).place} · ${fmtTime(stop(i).dur)}. ${stop(i).teaser}</p>${songLine(i)}
+      <div class="o-row"><button class="o-yes" data-act="mapPlay" data-i="${i}">Play now</button>
+      <button class="o-no" data-act="navigate" data-i="${i}">Navigate from here</button></div></div>`;
+  else if (S.song != null) {
+    const sg = stop(S.song).song;
+    card = `<div class="offer"><p class="label">♪ A song for this stretch</p><p class="o-title">${esc(sg.title)} · ${esc(sg.artist)}</p>
+      <p class="o-why">${esc(sg.why)} ${fmtTime(sg.length)}, and the next story is a while away.</p>
+      <div class="o-row"><button class="o-yes" data-act="openSong" data-i="${S.song}">Play on Spotify</button>
+      <button class="o-no" data-act="dismissSong">No thanks</button></div></div>`;
+  } else if (S.playing)
+    card = `<p class="label">Now playing · ${stop(S.playing.i).n} of ${TOUR.stops.length}</p><p class="o-title">${stop(S.playing.i).title}</p>
+      <p class="o-why">${stop(S.playing.i).place} · <span id="p2-left"></span> left</p>${songLine(S.playing.i)}`;
+  else if (S.phase === "done")
+    card = `<p class="label">You've arrived</p><p class="o-title">${stop(TOUR.stops.length - 1).short}</p><p class="o-why">${heard()} of ${TOUR.stops.length} stories heard</p>`;
+  else if (n != null)
+    card = `<p class="label">Next story · <span id="p2-d"></span></p><p class="o-title">${stop(n).title}</p><p class="o-why">${stop(n).place}</p>`;
+  else card = `<p class="o-title">No more stories</p>`;
+  return `<div class="p2-top"><button class="pg-btn" data-act="toStory">‹ Story</button><span class="spacer" style="flex:1"></span>
+    <button class="pg-btn" data-act="mapMode">${map.mode === "route" ? "Follow car" : "Whole route"}</button></div>
+    <div class="p2-bottom">${card}<p class="p2-hint">Tap a numbered story for details. ♪ marks a story followed by a song. A new story brings you back to the story page.</p></div>`;
+}
+function drive() {
+  $("#p1").innerHTML = glanceHTML(`<button class="pg-btn" data-act="toMap">Map ›</button>`);
+  $("#p2ui").innerHTML = p2HTML();
+  if (P3.phase !== S.phase) { if (P3.phase === "setup" || P3.phase == null) requestAnimationFrame(() => goto(0, false)); P3.phase = S.phase; }
+  // Something new for the car (a story starts, a missed stop is offered, the end): back to the
+  // story page. A song offer doesn't: it's for passengers, and the map page shows it too.
+  const key = `${S.playing?.i}|${S.missed.join()}|${S.phase}`;
+  if (key !== P3.key) {
+    if (P3.key && (S.playing || S.missed.length || S.phase === "done")) { P3.sel = null; goto(0); }
+    P3.key = key;
+  }
+}
+
+mountA("Design A.3 · Map page", {
+  drive,
+  songMarks: true,
+  tick(full) {
+    map.sel = P3.sel;
+    map.update(full);
+    const left = $("#p2-left"), d = $("#p2-d"), n = nextUp();
+    if (left && S.playing) left.textContent = fmtTime(stop(S.playing.i).dur - S.playing.t);
+    if (d && n != null) d.textContent = `${fmtKm(distTo(n))} · ${fmtMins(minsTo(n))}`;
+  },
+  acts: {
+    toMap() { goto(1); },
+    toStory() { goto(0); },
+    mapMode() { map.mode = map.mode === "route" ? "follow" : "route"; P3.sel = null; },
+    pin(i) { P3.sel = P3.sel === i ? null : i; },
+    mapPlay(i) { act.playNow(i); P3.sel = null; },
+  },
+});
+</script>
+</body>
+</html>
