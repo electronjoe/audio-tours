@@ -10,6 +10,10 @@ Status: doing (deployed; needs a check on an Android phone) · Priority: medium 
 Yes. Google Maps URLs support multi-stop directions, and on Android the link opens the Maps
 app.
 
+> **Since task 009 (2026-11-03)** there are no stop cards: Navigate from here is on each story
+> in **All stories** (with "Open the trigger point in Google Maps" below it) and on each pin's
+> card on the map page. `navLink` is unchanged.
+
 ## Now
 
 Each stop card has "Open trigger point in Google Maps", a single-point search link
@@ -44,7 +48,7 @@ https://www.google.com/maps/dir/?api=1
 
 ## Acceptance
 
-- [ ] Each stop card has Navigate from here. On an Android phone it opens the Google Maps app
+- [ ] Each story has Navigate from here (All stories, and its pin's card). On an Android phone it opens the Google Maps app
       with the remaining stops in order, starting at the current location. (Every card has the
       link, checked by `tests/player_drive.py`; the phone check is still to do.)
 - [x] From stop 6 on the Hobart tour, the route goes back through New Norfolk to Hobart, not

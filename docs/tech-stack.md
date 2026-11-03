@@ -8,7 +8,7 @@ that runs the tour on a phone. Details live in `README.md`, `docs/` and the modu
 tours/<slug>/                 src/audiotour/ (Python CLI)               site/ (static, GitHub Pages)
   tour.toml      ─┐            check ─ render ─ sfx ─ master ─ publish ─►  <slug>/tour.json
   source/*.md    ─┼──────────►   │        │                 │              <slug>/audio/*.mp3
-  route.json     ─┘              │   ElevenLabs API     ffmpeg             player/ (app.js) + sw.js
+  route.json     ─┘              │   ElevenLabs API     ffmpeg             player/ (app, view, map .js) + sw.js
                                  └─ spend.Guard (cache, cap, ledger)        ▲
                                                                            │ Android Chrome: GPS,
                                                                            │ offline cache, audio
@@ -26,7 +26,7 @@ tours/<slug>/                 src/audiotour/ (Python CLI)               site/ (s
 | Tests | `pytest` | Unit tests in `tests/`. |
 
 **Modules:**
-- `cli.py`: the `tour` commands. Free: `new`, `check`, `estimate`, `account`, `models`, `voices`, `master`, `combine`, `publish`, `pages`, `ledger`, `route`, `plan-check`. Paid: `render`, `sfx`, `design`, `audition`, `save-voice`.
+- `cli.py`: the `tour` commands. Free: `new`, `check`, `estimate`, `account`, `models`, `voices`, `master`, `combine`, `publish`, `pages`, `ledger`, `route`, `plan-check`, `map`. Paid: `render`, `sfx`, `design`, `audition`, `save-voice`.
 - `config.py`: reads `tour.toml`.
 - `script.py`: parses the Markdown working draft into tracks, pauses, cast and sound cues (`docs/process/5-scripts.md`, the format contract).
 - `chunks.py`: splits each track into TTS requests.
@@ -36,11 +36,12 @@ tours/<slug>/                 src/audiotour/ (Python CLI)               site/ (s
 - `publish.py`: writes `site/<slug>/`.
 - `new.py`: `tour new` starts a tour folder from `docs/process/templates/`.
 - `route.py`: `tour route` fetches each leg from OSRM and writes `route.json`; `tour plan-check` checks stop spacing against it offline.
+- `basemap.py`: `tour map` fetches the tour's area from OpenStreetMap (Overpass API, cached) and writes the base map `site/<slug>/map.json`: land and sea, water, parks, main roads, rivers and town names, simplified to whole metres (task 010).
 - `songs.py`: the per-stop song table; `tour check` verifies each Spotify link's title (oEmbed) and length (the track page's `music:duration` tag).
 
 ## Content (`tours/<slug>/`)
 
-- **`tour.toml`:** title, voices, sound effects, mastering settings, route legs and end point, and stops (trigger point, radius, `strict`, optional `nav` point and Spotify song).
+- **`tour.toml`:** title, voices, sound effects, mastering settings, route legs and end point, and stops (trigger point, radius, `place`, `strict`, optional `label` and `teaser` for the map, `nav` point and Spotify song).
 - **`source/working-draft.md`:** the narration, one `## Script:` section per stop.
 - **`source/research.*`:** private research notes. These are gitignored because they name family members.
 - **`route.json`:** outbound and return legs as `[lat, lon]` points about 300 m apart, from the public [OSRM](https://project-osrm.org/) driving router (`tour route`).
@@ -50,15 +51,17 @@ tours/<slug>/                 src/audiotour/ (Python CLI)               site/ (s
 
 | Layer | Choice | Notes |
 | --- | --- | --- |
-| Code | Plain HTML, CSS and JavaScript | No framework, bundler or build step. `site/player/app.js` is shared by every tour. Each tour page is generated from `tour.html` and reads its own `tour.json` (`docs/tour-json.md`). |
+| Code | Plain HTML, CSS and JavaScript | No framework, bundler or build step. Three classic scripts shared by every tour, loaded in order: `site/player/app.js` (the engine: state, GPS, queue, audio, cache, route progress), `map.js` (the map page) and `view.js` (the screens). Each tour page is generated from `tour.html` and reads its own `tour.json` (`docs/tour-json.md`). |
+| Screens | Setup, car screen, map page, All stories (task 009, design A.3) | Setup (a checklist and Start) on a first visit or with stale progress, in the system's light or dark theme. The car screen is always dark: a ring counting down to the next story by road (or the story playing), one offer card at a time and two big dock buttons; two columns in a landscape mount. All stories, a full-screen list, holds every story's actions, the event log (Why did that play?), Start over and the help. |
+| Map | SVG drawn by `map.js` | The route, the part driven, numbered pins with their zones and labels, and the car, over the tour's base map (`map.json`, drawn from OpenStreetMap by `tour map`, no tiles, saved with the audio). Swipe left or Map › from the car screen; a new story brings the story page back. |
 | Location | Geolocation API (`watchPosition`) | A stop triggers when a fix lands in its zone. Catch-up handles stops passed while the page was hidden. Speed comes from fixes. |
 | Offline | Service worker (`site/sw.js`) and the Cache API | Audio is cache-first (content-hashed file names). Pages and `tour.json` are network-first with a cache fallback. `navigator.storage.persist()` asks Chrome not to evict the cache. |
 | Playback | `HTMLAudioElement` and the Media Session API | Lock-screen and headset controls. |
 | Phone behaviour | Screen Wake Lock API, `visibilitychange` | Keeps the screen on while driving and notices when the page is hidden. |
-| State | `localStorage` | Progress, queue and the event log, per device. |
+| State | `localStorage` | Progress, queue, the place along the route and the event log, per device. |
 | Install | Web app manifest (PWA) | Can be added to the home screen. |
-| Navigation links | Google Maps URLs | Links only, no API key. Each stop's Navigate from here routes through the remaining stops. |
-| Songs | `open.spotify.com/track/…` links | After a song stop, ▶ Play on Spotify opens the app, only when there is time before the next trigger. No music is embedded or played by the tour. |
+| Navigation links | Google Maps URLs | Links only, no API key. Navigate from here, on each story in All stories and each pin's card, routes through the remaining stops. |
+| Songs | `open.spotify.com/track/…` links | After a song stop, an offer card (on the car screen and the map page) has ▶ Play on Spotify, only when there is time before the next trigger, and No thanks. No music is embedded or played by the tour. |
 
 The target is Android Chrome. `?sim=20` replays the route as a simulated drive. `site/lab/gps-probe/`
 is a stand-alone page that measured background GPS behaviour (task 006).
@@ -71,7 +74,7 @@ is a stand-alone page that measured background GPS behaviour (task 006).
 ## Testing
 
 - **`uv run pytest`:** unit tests for the parser, chunking, mastering, publish, songs and route tools, including a check that the committed pages match their templates. OSRM and Spotify tests use recorded responses in `tests/fixtures/`. `tests/test_navigate.py` runs the player's link builder under Node, and is skipped without `node`.
-- **`tests/player_drive.py`:** drives the real player in headless Chrome with [Playwright](https://playwright.dev/python/). Run it with `uv run --with playwright …`; Playwright is not a project dependency. It feeds browser geolocation along `route.json`, and also covers stale progress, coarse fixes, hidden-page gaps and offline playback.
+- **`tests/player_drive.py`:** drives the real player in headless Chrome with [Playwright](https://playwright.dev/python/). Run it with `uv run --with playwright …`; Playwright is not a project dependency. It feeds browser geolocation along `route.json`, and also covers stale progress, coarse fixes, hidden-page gaps, songs, route progress, the map page and offline playback. Every selector it uses is in one table (`SEL`). A screenshot pass shoots each screen, light and dark, portrait and landscape, into `tours/<slug>/build/shots/` (`--no-shots`, `--shots-only`).
 
 ## External services
 
@@ -79,6 +82,7 @@ is a stand-alone page that measured background GPS behaviour (task 006).
 | --- | --- | --- |
 | ElevenLabs | Narration (text to speech with timestamps), sound effects, voice design | Paid, only through `spend.Guard`. |
 | OSRM public server | Driving routes for `route.json` | Free; responses cached. |
+| OpenStreetMap (Overpass API) | The base map under each tour's route (`tour map`) | Free; fetched once per tour and cached. The data is ODbL: the map shows "© OpenStreetMap contributors". |
 | Spotify oEmbed and track pages | Checking song links and lengths | Free, no account; responses cached. |
 | Google Maps | Links that open a place or a route | Free; no key. |
 | GitHub Pages | Hosting | Free. |

@@ -72,7 +72,7 @@ not a string, more than one line or over its length.
 
 ## Navigate from here
 
-Each stop card has a Google Maps directions link built by the player (`navLink` in `app.js`)
+Each story in All stories, and each pin's card on the map page, has a Google Maps directions link built by the player (`navLink` in `app.js`)
 from `nav`, the trigger points and `route.end`: this stop and every later one, in order, then
 `route.end` as the destination. A point equal to the one just before it is dropped; repeats
 further apart stay, because they are what makes Maps drive out and back. There is no origin,

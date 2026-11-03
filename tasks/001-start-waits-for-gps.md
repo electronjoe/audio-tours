@@ -28,6 +28,12 @@ two plausible causes, and neither has been confirmed:
    accuracy under `MAX_ACCURACY` (150 m), for example a phone hotspot or a router that has
    moved.
 
+> **Since task 009 (2026-11-03)** the player's screens changed. In the notes below: the Now card's
+> Resume is the car screen's ring after a reload (**▶ Resume N · title**, or **Carry on**) or an
+> offer card after Continue; **More → Event log** is **All stories → Why did that play?**; the
+> Next stop card's Play now is the dock's **Play it now**; Start, and Start from the beginning /
+> Continue, are on the setup screen.
+
 ## Change
 
 - **Start never plays audio.** It arms GPS, takes the wake lock and unlocks audio, and nothing
@@ -104,5 +110,5 @@ catch-up from 006 landed in the same change, because both are about which fix ma
   nothing, stale progress (both buttons), a coarse fix ignored and a precise one triggering,
   the event log (data and the More panel), and the hidden gap from 006. The screenshot path can
   be redirected with `$PLAYER_TEST_SHOT`.
-- Not yet tried on the road. The next drive should open the Event log after Start and after
-  coming back from Spotify or a locked screen.
+- Not yet tried on the road. The next drive should open the event log (All stories → Why did
+  that play?) after Start and after coming back from Spotify or a locked screen.

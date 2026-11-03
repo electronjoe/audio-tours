@@ -54,7 +54,7 @@ placed on it and the audio can be budgeted.
 - `route.json`.
 - `site/<slug>/map.json` (step 6), committed.
 - `[route] end = [lat, lon]` in `tour.toml`: where the trip finishes, usually the last point
-  of the return leg. The stop cards' Navigate from here links end there (task 003). Use a
+  of the return leg. The stories' Navigate from here links end there (task 003). Use a
   public place, such as the town centre, never a home address.
 - A leg table in `tours/<slug>/plan.md`: leg, distance, minutes, quiet stretches, and the
   listening minutes available.

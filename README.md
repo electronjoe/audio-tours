@@ -53,4 +53,5 @@ Pushing `site/` to `main` deploys Pages (`.github/workflows/pages.yml`).
 Stops play in sequence. Only the next unplayed stop, or the one after it, can be triggered by
 GPS (a `strict` stop waits for the one before it), so a return-leg story at the same place as
 an outbound one stays silent on the way out. A triggered stop queues behind the one playing and
-never interrupts it. "Start here" (tap a stop) and "Play now" (Next stop card) override GPS.
+never interrupts it. "Play it now" (the car screen, for the next story) and "Play now" (a story in
+All stories, or a pin's card on the map) override GPS.

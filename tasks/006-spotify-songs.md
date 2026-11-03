@@ -1,6 +1,6 @@
 # 006: Song moments with Spotify links
 
-Status: doing (built and deployed; Hobart stop 8 has a song card. Needs a phone test, and a spoken song segment on the next tour) · Priority: medium · Raised: 2026-11-02 (Hobart road test)
+Status: doing (built and deployed; Hobart stop 8 has a song. Needs a phone test, and a spoken song segment on the next tour) · Priority: medium · Raised: 2026-11-02 (Hobart road test)
 
 ## Why
 
@@ -80,6 +80,14 @@ minutes.
 - **Verify every link.** Don't trust a remembered track ID. Fetch
   `https://open.spotify.com/oembed?url=<link>` (no account needed) and check that the returned
   title matches. `tour check` does this when online and warns when offline.
+
+> **Since task 009 (2026-11-03)** the Now card is gone. The song is offered in an offer card,
+> **A song for this stretch**, on the car screen and in the map page's card, with
+> **▶ Play on Spotify** (or the Save for later line) and **No thanks** (`dismissSong`). The
+> stop card's song line is on the story's row in **All stories** ("♪ Then a song: title ·
+> artist", with its own Play link) and its pin's card; ♪ marks the story and its pin. The rules
+> below (room, catch-up) are unchanged; "Passed while you were away" is an offer card too, with
+> Skip.
 
 **Player:**
 

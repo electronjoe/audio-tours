@@ -31,9 +31,12 @@ const ICON = {
 const LABEL = { playing: "Playing now", queued: "Next, after this one", resume: "Cut off: ready to resume", played: "Heard",
   skipped: "Skipped", missed: "Passed while away", armed: "Coming up", upcoming: "Later" };
 const HELP = `Keep this page open on screen while you drive; navigation can run in the background.
-  Stories play in order and never interrupt each other: if two start close together, the second waits.
-  <b>Play now</b> plays a story now and carries on from it. If you switch to another app or the screen
-  locks, the phone stops sending GPS to this page; a story you pass meanwhile is offered when you come back.`;
+  Stories start by themselves as you reach each place, in order, and never interrupt each other: if two
+  start close together, the second waits. The ring counts down to the next one. <b>Play it now</b>, or
+  <b>Play now</b> on a story here or a pin on the map, plays a story straight away and carries on from it.
+  If you switch to another app or the screen locks, the phone stops sending GPS to this page; a story you
+  pass meanwhile is offered when you come back. Swipe left, or tap <b>Map ›</b>, for the map.
+  <b>Why did that play?</b> shows what started each story.`;
 
 /** Replace an element's HTML only when it changed, so buttons stay put between renders. */
 function set(el, html) {

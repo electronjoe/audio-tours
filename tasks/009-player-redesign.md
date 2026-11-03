@@ -1,6 +1,6 @@
 # 009: Player redesign: the glance screen and a map page (A.3)
 
-Status: doing (on branch `player-redesign`, steps 1–7 of 9 done) · Priority: high · Raised: 2026-11-03 (player redesign demos)
+Status: doing (on branch `player-redesign`, steps 1–8 of 9 done; step 9, the road test, is next) · Priority: high · Raised: 2026-11-03 (player redesign demos)
 
 ## Why
 
@@ -206,8 +206,8 @@ fails if the committed Hobart page doesn't match `tour.html`.
 
 ## Acceptance
 
-- [ ] Every feature in the table above is reachable in the new UI.
-- [ ] `tests/player_drive.py hobart` passes with every check it has today, plus the new ones
+- [x] Every feature in the table above is reachable in the new UI (steps 3–5; `player_drive.py` reaches each one).
+- [x] `tests/player_drive.py hobart` passes with every check it has today, plus the new ones
       from steps 3–5.
 - [x] `uv run pytest` passes (`test_publish`, `test_navigate`).
 - [ ] The screenshot set for step 1 is reviewed in light and dark.
@@ -369,16 +369,33 @@ pixel but for clocks and distances.
   and the place without one. The check that New Norfolk's name shows when following now finds
   it as pin 2's label (`SEL["map_places"]` takes both). 97 checks, 0 failures; pytest 111.
 
+**Step 8.** Docs.
+- `docs/tech-stack.md`: the player's Code row names the three scripts; new Screens and Map rows;
+  Songs, Navigation links and State rows say where things are now; `basemap.py`, `tour map` and
+  the Overpass API are listed; the test line mentions `SEL` and the screenshot pass.
+- `docs/tour-json.md` (`label`, `teaser`, step 7; Navigate from here's place), `README.md` (Play
+  it now and Play now), `docs/process/1-route.md` and `2-stops.md` (no more stop cards).
+- The help text (All stories, below the list) now says how stories start, what the ring is,
+  Play it now and Play now, the map, and Why did that play?.
+- Tasks 001, 003 and 006 keep their history and get a note naming where each old piece went
+  (Now card, More → Event log, Next stop card, stop cards, the song card); their open
+  instructions (001's next drive, 003's acceptance box) name the new places.
+
 ## Progress (2026-11-03)
 
-Work is on the branch `player-redesign`, not yet merged; the branch's copy of this file has the
-full "As built" notes. Done there: step 1 (selector table and screenshot pass in
-`tests/player_drive.py`), step 2 (`app.js` split into `app.js`, `map.js`, `view.js`), step 3
-(setup, car screen, offers, All stories, landscape, the tour list), step 4 (route progress for
-the ring), task 010's `tour map` (Hobart's `map.json`), step 5 (the map page), step 6 (the base map
-under it). `uv run pytest` 110 passed; `player_drive.py hobart` 91 checks, 0 failures. The
-checkpoint after step 6 (the map page over Hobart's base map) was presented and waits for
-Scott's OK. Open from it: the map card's first line wraps when long ("Next story · 2 of 8 ·
-1.0 km · under a minute"; dropping "N of 8" there would fix it), and the base map's colours
-are a little brighter than the demo's. Next: steps 7–8. Step 9 (road test) is Scott's.
+Work is on the branch `player-redesign`, not yet merged. Steps 1–8 are done there (see As
+built), with task 010's `tour map` (Hobart's `map.json`). `uv run pytest` 111 passed;
+`player_drive.py hobart` 97 checks, 0 failures.
 
+Open, waiting on Scott:
+- **All stories, "next" vs "armed"** (raised 2026-11-03 from `setup-stories-light-portrait`):
+  with `lookahead = 2`, two stops are armed and both rows got the accent ring and "Coming up",
+  so it looks like two "next" stories. Proposed: only `armed()[0]` gets the ring and the label
+  "Next"; other armed stops look and read as "Later"; the map lights only the next pin and zone
+  the same way. View only; not built until agreed.
+- From the step 6 checkpoint: the map card's first line wraps when long ("Next story · 2 of 8
+  · 1.0 km · under a minute"; dropping "N of 8" there would fix it), and the base map's
+  colours are a little brighter than the demo's.
+- The step 1 screenshot review (acceptance box).
+
+Next: step 9, the road test, is Scott's.
