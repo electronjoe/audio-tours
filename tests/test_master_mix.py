@@ -75,13 +75,14 @@ def tones(path, n: int, freq: int) -> None:
     audio.run(["ffmpeg", "-hide_banner", "-y", "-filter_complex", graph, "-ar", "44100", str(path)])
 
 
-def test_master_places_cues_and_ducks_the_bed(tmp_path):
+def master_demo(tmp_path, toml: str = TOML, rain: str = "anoisesrc=d=4:a=0.1"):
+    """Master the demo draft with tone-burst speech; returns the tour and its timeline."""
     tour = Tour("demo", tours_dir=tmp_path)
     (tour.root / "source").mkdir(parents=True)
     tour.draft.write_text(DRAFT)
-    (tour.root / "tour.toml").write_text(TOML)
+    (tour.root / "tour.toml").write_text(toml)
     tour.sfx_dir.mkdir(parents=True)
-    audio.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "anoisesrc=d=4:a=0.1", str(tour.sfx_dir / "rain-1.mp3")])
+    audio.run(["ffmpeg", "-y", "-f", "lavfi", "-i", rain, str(tour.sfx_dir / "rain-1.mp3")])
     audio.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "sine=f=1000:d=0.5", str(tour.sfx_dir / "pop-1.mp3")])
 
     from audiotour.render import find_track
@@ -99,9 +100,12 @@ def test_master_places_cues_and_ducks_the_bed(tmp_path):
                       "chars": len(c.text)})
     (work / "manifest.json").write_text(json.dumps({"items": items}))
 
-    out = master_track(tour, "stop-1")
-    assert out == tour.build / "stop-1.mp3"
-    timeline = json.loads((work / "timeline.json").read_text())
+    assert master_track(tour, "stop-1") == tour.build / "stop-1.mp3"
+    return tour, json.loads((work / "timeline.json").read_text())
+
+
+def test_master_places_cues_and_ducks_the_bed(tmp_path):
+    tour, timeline = master_demo(tmp_path)
     parts = [e for e in timeline["events"] if "part" in e]
     assert [p["part"] for p in parts] == ["title", "chunk-01 ¶1-2", "chunk-01 ¶3-3", "chunk-02", "chunk-03"]
     para = {int(k): v for k, v in timeline["paragraphs"].items()}
@@ -119,3 +123,12 @@ def test_master_places_cues_and_ducks_the_bed(tmp_path):
     assert bed["from"] == pytest.approx(para[1][0] - 1.5, abs=0.02)
     assert bed["fade_out_at"] == pytest.approx(para[4][1], abs=0.02)
     assert bed["under_speech_db"] < bed["in_gaps_db"] - 4  # ducked under the voice
+
+
+def test_highpass_keeps_rumble_from_being_boosted(tmp_path):
+    # a loud 30 Hz rumble that LUFS barely counts, over quiet noise
+    rumble = "sine=f=30:d=4,volume=0.5[r];anoisesrc=d=4:a=0.003[n];[r][n]amix=normalize=0"
+    toml = TOML.replace('prompt = "rain"\n', 'prompt = "rain"\nlevel_db = -9\nhighpass = 120\n')
+    _, timeline = master_demo(tmp_path, toml, rumble)
+    [bed] = [e for e in timeline["events"] if e.get("sfx") == "rain-1.mp3"]
+    assert bed["in_gaps_db"] < -6  # near level_db; unfiltered, the rumble boosts it to about -4.5

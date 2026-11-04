@@ -13,6 +13,8 @@ cuts the chunk at the paragraph break, so no re-render is needed. A bed fades
 in before the speech after its ``under`` cue and out after the speech before
 its ``stop``, at ``level_db`` relative to the voice in the gaps, and is ducked
 a further ``duck_db`` under speech by a sidechain compressor keyed on the voice.
+An effect with ``highpass`` (Hz) is filtered before its level is measured and set,
+so sub-bass rumble, which LUFS barely counts, isn't boosted with it.
 Then the whole mix is loudness-normalised (two-pass loudnorm) and encoded with
 ID3 tags.
 """
@@ -83,6 +85,11 @@ def paragraph_gap(items: list[dict]) -> float:
     """The narrator's median pause between paragraphs inside a chunk."""
     gaps = [g for it in items if it["kind"] == "speech" for g in it["gaps"]]
     return min(1.5, max(0.4, statistics.median(gaps))) if gaps else 0.8
+
+
+def highpass(d: dict) -> str:
+    """The ffmpeg prefilter for an effect's optional ``highpass`` (Hz), or ""."""
+    return f"highpass=f={d['highpass']}:poles=2," if d.get("highpass") else ""
 
 
 def sfx_file(tour: config.Tour, name: str, variant: int | None = None) -> Path:
@@ -249,8 +256,9 @@ def master_track(tour: config.Tour, track_id: str) -> Path:
             timeline.insert(0, {"sfx": path.name, "at": round(at, 2), "gain_db": round(gain, 1)})
         for name, at in shots:
             path = sfx_file(tour, name)
-            gain = voice_lufs + sfx_defs[name].get("level_db", SFX_LEVEL_DB) - audio.loudness(path)
-            g.add(path, f"{FORMAT},volume={gain:.2f}dB,{delay(at)}")
+            hp = highpass(sfx_defs[name])
+            gain = voice_lufs + sfx_defs[name].get("level_db", SFX_LEVEL_DB) - audio.loudness(path, hp)
+            g.add(path, f"{hp}{FORMAT},volume={gain:.2f}dB,{delay(at)}")
             timeline.append({"sfx": path.name, "at": round(at, 2), "gain_db": round(gain, 1)})
         reports = []
         for name, start, fade_at in spans:
@@ -259,10 +267,11 @@ def master_track(tour: config.Tour, track_id: str) -> Path:
             fade_out = d.get("fade_out", BED_FADE_OUT)
             span = fade_at + fade_out - start
             fade_in = min(d.get("fade_in", BED_FADE_IN), span)
-            gain = voice_lufs + d.get("level_db", SFX_LEVEL_DB) - audio.loudness(path)
+            hp = highpass(d)
+            gain = voice_lufs + d.get("level_db", SFX_LEVEL_DB) - audio.loudness(path, hp)
             loop = d.get("loop", False)
             chain = (
-                f"{'' if loop else 'apad,'}atrim=duration={span:.3f},asetpts=PTS-STARTPTS,{FORMAT},"
+                f"{hp}{'' if loop else 'apad,'}atrim=duration={span:.3f},asetpts=PTS-STARTPTS,{FORMAT},"
                 f"afade=t=in:d={fade_in:.3f},afade=t=out:st={span - fade_out:.3f}:d={fade_out:.3f},"
                 f"volume={gain:.2f}dB,{delay(start)},apad=whole_dur={total:.3f},atrim=duration={total:.3f}"
             )

@@ -9,6 +9,8 @@ each kept point, so ``plan-check`` can time the road between triggers offline.
 ``tour plan-check <slug>`` is offline. It places every stop's trigger on the route in sequence
 and checks the rules in 2-stops.md: on the route, enough road time for the audio (and a song),
 radius ranges, and ``strict`` where a later stop's zone is on the road to an earlier one.
+With ``[route] estimated = true`` (a coach tour whose roads are a guess, 2-stops.md "Uncertain
+routes"), a trigger need only have its zone reach the route, and radii may run to 10 km.
 """
 
 from __future__ import annotations
@@ -22,7 +24,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import config
+from . import config, songs
 from .script import load_tracks
 
 OSRM_URL = "https://router.project-osrm.org/route/v1/driving/"
@@ -35,6 +37,7 @@ QUIET = 60  # seconds of quiet wanted between stops (2-stops.md, Spacing)
 SONG_SEGMENT = 60  # seconds budgeted for a song segment the script doesn't have yet
 FALLBACK_KMH = 80  # planning speed when route.json has no "seconds" (2-stops.md)
 RADII = {"drive": (300, 1000), "walk": (25, 80)}  # 2-stops.md
+ESTIMATED_RADII = (300, 10_000)  # metres, for a route that is a best guess (2-stops.md)
 STALE = 0.15  # warn when a published length and the draft estimate differ by more
 
 Point = tuple[float, float]
@@ -288,9 +291,10 @@ def runs(d: list[float], radius: float) -> list[tuple[int, int]]:
     return out
 
 
-def place(path: Trip, stops: dict[str, dict]) -> tuple[list[Placed], dict[str, list[float]]]:
+def place(path: Trip, stops: dict[str, dict], estimated: bool = False) -> tuple[list[Placed], dict[str, list[float]]]:
     """Find each trigger on the route, in sequence: the first stretch inside its zone, after
-    the stop before it, that passes within ON_ROUTE of the trigger point."""
+    the stop before it, that passes within ON_ROUTE of the trigger point (on an estimated
+    route, any stretch inside its zone)."""
     placed, dists, after = [], {}, 0
     for sid, s in stops.items():
         c = (s["lat"], s["lon"])
@@ -303,7 +307,7 @@ def place(path: Trip, stops: dict[str, dict]) -> tuple[list[Placed], dict[str, l
                 continue
             lo = max(a, after)
             best = min(range(lo, b + 1), key=d.__getitem__)
-            if d[best] <= ON_ROUTE:
+            if d[best] <= (r if estimated else ON_ROUTE):
                 p.at, p.off = best, d[best]
                 inside = [i for i in range(a, best + 1) if d[i] <= s.get("radius", 400)]
                 p.entry = max(inside[0] if inside else best, after)
@@ -393,12 +397,13 @@ def check(tour: config.Tour, route: dict, site_dir: Path | None = None) -> tuple
     stops: dict[str, dict] = s.get("stops", {})
     mode = s.get("player", {}).get("mode", "drive")
     lookahead = s.get("player", {}).get("lookahead", 2)
+    estimated = bool(s.get("route", {}).get("estimated", False))
     waits = {k: float(v.get("wait", 0)) for k, v in s.get("route", {}).items()
              if isinstance(v, dict) and "wait" in v}
     path = trip(route, waits)
     if not path.pts:
         raise SystemExit("route.json has no legs")
-    placed, dists = place(path, stops)
+    placed, dists = place(path, stops, estimated)
     lengths, draft = audio_seconds(tour, site_dir), draft_seconds(tour)
     findings: list[Finding] = []
     if not path.timed:
@@ -407,16 +412,20 @@ def check(tour: config.Tour, route: dict, site_dir: Path | None = None) -> tuple
 
     # On the route, in sequence.
     for p in placed:
-        if p.at is None:
+        if p.at is None and estimated:
+            findings.append(Finding("error", p.sid, f"its zone doesn't reach the route after the stop before it"
+                                    f" (nearest {p.off:.0f} m; radius {p.cfg.get('radius', 400)} m)"))
+        elif p.at is None:
             findings.append(Finding("error", p.sid, f"trigger is not on the route after the stop before it"
                                     f" (nearest {p.off:.0f} m; allowed {ON_ROUTE} m)"))
 
     # Radii.
-    lo, hi = RADII.get(mode, RADII["drive"])
+    lo, hi = ESTIMATED_RADII if estimated else RADII.get(mode, RADII["drive"])
+    kind = "an estimated route" if estimated else f"a {mode} tour"
     for sid, cfg in stops.items():
         r = cfg.get("radius", 400)
         if not lo <= r <= hi:
-            findings.append(Finding("error", sid, f"radius {r} m is outside {lo}-{hi} m for a {mode} tour"))
+            findings.append(Finding("error", sid, f"radius {r} m is outside {lo}-{hi} m for {kind}"))
 
     # Road time between triggers.
     rows = []
@@ -439,7 +448,7 @@ def check(tour: config.Tour, route: dict, site_dir: Path | None = None) -> tuple
             elif need is not None:
                 need += song + SONG_MARGIN
                 text = draft.get(p.sid, (0, ""))[1].lower()
-                title = str(song_cfg.get("title", "")).lower()
+                title = songs.base_title(str(song_cfg.get("title", ""))).lower()  # "(version 2)" isn't spoken
                 if source == "draft" and (not title or title not in text):
                     need += SONG_SEGMENT
                     findings.append(Finding("warning", p.sid, f"the script doesn't name the song yet;"

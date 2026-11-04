@@ -294,6 +294,22 @@ def test_radii_follow_2_stops_md(tmp_path):
     assert e.sid == "stop-2" and "25-80 m" in e.message
 
 
+def test_an_estimated_route_allows_off_route_triggers_and_km_radii(tmp_path):
+    # Stop 2 is about 3 km east of the road with a 4 km zone; stop 3's 2 km zone misses it.
+    est = "[route]\nestimated = true\n\n"
+    off = lambda sid, km, east, radius: f"[stops.{sid}]\nlat = {at_km(km)}\nlon = {147.0 + east}\nradius = {radius}\n"
+    stops = stop("stop-1", 3, 2000) + off("stop-2", 12, 0.037, 4000) + off("stop-3", 20, 0.037, 2000)
+    rows, findings, _ = plan(tmp_path / "a", stops, draft(**{"stop-1": 130, "stop-2": 130, "stop-3": 130}), extra=est)
+    [e] = errors(findings)
+    assert e.sid == "stop-3" and "doesn't reach the route" in e.message
+    assert rows[1].off == pytest.approx(3060, abs=20)
+    _, findings, _ = plan(tmp_path / "b", stop("stop-1", 3, 12000), draft(**{"stop-1": 130}), extra=est)
+    [e] = errors(findings)
+    assert "300-10000 m for an estimated route" in e.message
+    _, findings, _ = plan(tmp_path / "c", stops, draft(**{"stop-1": 130, "stop-2": 130, "stop-3": 130}))
+    assert {f.sid for f in errors(findings)} == {"stop-1", "stop-2", "stop-3"}  # a known route: not allowed
+
+
 def test_without_seconds_road_time_assumes_80_kmh(tmp_path):
     rows, findings, trip = plan(tmp_path, stop("stop-1", 3) + stop("stop-2", 12),
                                 draft(**{"stop-1": 130, "stop-2": 130}), seconds=False)

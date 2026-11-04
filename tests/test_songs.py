@@ -141,6 +141,14 @@ def test_check_rejects_a_title_that_does_not_match(tmp_path):
                        "the song segment should") in messages(problems)
 
 
+def test_check_does_not_need_a_version_note_spoken(tmp_path):
+    tour = make_tour(tmp_path, title="Never Gonna Give You Up (version 2)")
+    assert not [m for _, m in messages(songs.check(tour, Spotify(offline=True))) if "never names" in m]
+    assert songs.base_title("Song Of Australia (version 2)") == "Song Of Australia"
+    assert songs.base_title("Here Comes the Sun - Remastered 2009") == "Here Comes the Sun"
+    assert songs.base_title("Waltzing Matilda") == "Waltzing Matilda"
+
+
 def test_check_rejects_a_wrong_length_and_says_the_right_one(tmp_path):
     tour = make_tour(tmp_path, length="3:42")
     assert messages(songs.check(tour, Spotify())) == [

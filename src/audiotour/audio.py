@@ -42,9 +42,9 @@ def speech_bounds(path: Path) -> tuple[float, float]:
     return start, end
 
 
-def loudness(path: Path) -> float:
-    """Integrated loudness in LUFS (EBU R128)."""
-    out = run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(path), "-af", "ebur128", "-f", "null", "-"])
+def loudness(path: Path, prefilter: str = "") -> float:
+    """Integrated loudness in LUFS (EBU R128), after ``prefilter`` (an ffmpeg chain ending in a comma)."""
+    out = run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(path), "-af", f"{prefilter}ebur128", "-f", "null", "-"])
     summary = out[out.rfind("Summary:"):]
     m = re.search(r"I:\s+(-?[\d.]+|-inf) LUFS", summary)
     if not m or m.group(1) == "-inf":

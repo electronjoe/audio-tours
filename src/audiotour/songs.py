@@ -171,13 +171,18 @@ def _plain(text: str) -> str:
     return " ".join(re.sub(r"[^\w\s]", " ", text).split())
 
 
+def base_title(title: str) -> str:
+    """The title without a trailing version note ("- Remastered 2011", "(Live)", "[Mono]")."""
+    m = re.match(r"^(.*?)\s*(?:\s[-–—]\s.*|\(.*\)|\[.*\])$", title.strip())
+    return m[1] if m and m[1] else title
+
+
 def same_title(ours: str, theirs: str) -> str:
     """``"same"``, ``"version"`` (Spotify adds a note such as "- Remastered 2011" or
     "(Live)"), or ``"different"``. Case, accents and punctuation don't count."""
     if _plain(ours) == _plain(theirs):
         return "same"
-    m = re.match(r"^(.*?)\s*(?:\s[-–—]\s.*|\(.*\)|\[.*\])$", theirs.strip())
-    if m and m[1] and _plain(m[1]) == _plain(ours):
+    if _plain(base_title(theirs)) == _plain(ours):
         return "version"
     return "different"
 
@@ -203,8 +208,10 @@ def check(tour: config.Tour, fetch: Fetch = http_get, online: bool = True) -> li
         if bad:
             continue
         # The stop's script should name the song and the artist (docs/process/5-scripts.md).
+        # A version note in the title ("(version 2)") needn't be spoken.
         for f in ("title", "artist"):
-            if sid in spoken and _plain(song[f]) not in spoken[sid]:
+            name = base_title(song[f]) if f == "title" else song[f]
+            if sid in spoken and _plain(name) not in spoken[sid]:
                 problems.append(Problem(line, f"{where}: the {sid} script never names the {f} "
                                               f"({song[f]!r}); the song segment should", error=False))
         if offline is None:

@@ -1,0 +1,51 @@
+<!doctype html>
+<!-- site/<slug>/index.html is written from site/player/tour.html by `tour publish`; edit the template. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14532d">
+<title>Barossa Valley</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="../player/icon-192.png">
+<link rel="stylesheet" href="../player/style.css?v=64bdf183">
+</head>
+<body>
+<section id="setup" hidden></section>
+<section id="drive" hidden>
+  <div class="pager" id="pager">
+    <section class="page glance" id="p1"></section>
+    <section class="page map-page" id="p2">
+      <div class="p2-map" id="p2map"></div>
+      <div class="p2-top"><button class="pg-btn" id="to-story" data-act="toStory">‹ Story</button><span class="spacer"></span>
+        <button class="pg-btn" id="map-mode" data-act="mapMode">Whole route</button></div>
+      <div class="p2-bottom" id="p2-bottom"><div id="p2card"></div>
+        <p class="p2-hint">Tap a numbered story for details. ♪ marks a story followed by a song. A new story brings you back to the story page.</p>
+        <p class="p2-attr" id="map-attr" hidden>© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</p></div>
+    </section>
+  </div>
+  <div class="dots" aria-hidden="true"><span class="on"></span><span></span></div>
+</section>
+<section id="sheet" hidden>
+  <div class="sheet-head"><h2>Stories</h2><button class="x" data-act="closeSheet" aria-label="Close">✕</button></div>
+  <ol class="list" id="stories"></ol>
+  <div class="sheet-more">
+    <button class="o-no" id="log-toggle" data-act="toggleLog">Why did that play?</button>
+    <button class="o-no" id="reset" data-act="reset">Start over</button>
+  </div>
+  <ol id="log" class="log" hidden></ol>
+  <details class="files">
+    <summary>Plain audio files (if the player fails)</summary>
+    <p class="help">Each opens in the phone's own audio player.</p>
+    <ol id="files"></ol>
+  </details>
+  <p class="help" id="help"></p>
+  <button class="o-no" id="sim" data-act="sim" hidden>Simulate drive</button>
+</section>
+<div id="toast" role="status" hidden></div>
+<!-- ?v= is the player version from `tour pages`: a new page never runs stale cached code. -->
+<script src="../player/app.js?v=64bdf183"></script>
+<script src="../player/map.js?v=64bdf183"></script>
+<script src="../player/view.js?v=64bdf183"></script>
+</body>
+</html>

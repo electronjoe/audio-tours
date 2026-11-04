@@ -1,0 +1,322 @@
+# Production settings for Barossa Valley, started with `uv run tour new barossa` on 2026-11-04.
+# Fill it in stage by stage (docs/process/). This file is committed and public: no family
+# names, ages, home addresses or travel dates.
+
+[tour]
+title = "Barossa Valley"
+short_name = "Barossa Valley"   # home-screen label; shorten it if the title is long
+audience = "curious-adults"   # who it's written for: docs/process/audiences.md
+theme_color = "#14532d"
+artist = "Audio Tours"
+year = 2026
+
+[player]
+mode = "drive"           # "walk" is task 007 and isn't built yet
+lookahead = 2            # how many unplayed stops GPS can trigger (2-stops.md)
+
+[narration]
+model_id = "eleven_v4"
+output_format = "mp3_44100_128"
+
+# The series narrator from Barossa on. Hobart's Tour-Tasmania-Narrator sounded British rather
+# than Australian, so it was redesigned and then deleted from the library (2026-11-04). Picked
+# by the family on 2026-11-04 from two rounds of Voice Design previews
+# (build/auditions/narrator-design-aus-wry-2.mp3; the other round was "aus-gravitas"), from the
+# description "A warm, wry Australian woman in her late forties ... strong, natural general
+# Australian accent with clear Australian vowels, like a presenter on ABC Radio National.
+# Definitely not British or RP, and not ocker or broad." The preview's id is the voice id.
+[voices.narrator]
+name = "Tour-Australia-Narrator"
+voice_id = "kjjRBL6KMqJWfEsbp54x"
+source = "Voice Design (eleven_ttv_v3), saved 2026-11-04"
+
+# Guests: one [voices.<key>] per `## Cast` entry in the draft (5-scripts.md, 6-sound.md).
+# Both are premade library voices (`uv run tour voices`), so they take no custom slot.
+
+# Stop 3: Hermann Thumm reading his memoir, The Road to Yaldara (1996), written in his
+# eighties. "Bill" is the library's one old, measured male voice; no premade voice has a
+# German or Georgian accent, and putting one on would be a caricature, so a neutral older
+# voice reads his own words. Clearly unlike the narrator (a woman in her forties).
+[voices.thumm]
+name = "Bill - Wise, Mature, Balanced"
+voice_id = "pqHfZKP75CvOlQylNhV4"
+source = "ElevenLabs premade library"
+
+# Stop 6: a vine-health scientist (a role). "Charlie" is the library's only Australian
+# accent, and a younger, quicker male voice that contrasts with the narrator in a back and
+# forth. Listen for his "hyped" style in the ear check; tame it with stability if needed.
+[voices.scientist]
+name = "Charlie - Deep, Confident, Energetic"
+voice_id = "IKne3meq5aSn9XLyUdCD"
+source = "ElevenLabs premade library"
+
+[render]
+max_chunk_chars = 1500
+context_chars = 600
+announce_titles = true
+title_label = false      # "The Road That Tried to Sink.", not "Stop One. ..."
+
+[master]
+target_lufs = -16
+true_peak = -1.5
+head_seconds = 0.3
+tail_seconds = 1.5
+bitrate = "128k"
+sting = "chime"          # [sfx.chime] before every stop
+sting_level_db = -6
+sting_gap = 0.4
+
+# Sound effects (6-sound.md). The chime opens every stop; `uv run tour sfx barossa chime` makes
+# its 2 takes for about 17 credits. Add an [sfx.<name>] for each cue in the draft's
+# `## Audio notes`.
+[sfx.chime]
+prompt = "A gentle, warm two-note marimba chime, soft and friendly, like an announcement on a family tour bus. Clean, no reverb tail."
+duration = 1.5
+variants = 2
+chosen = 2               # picked by ear on 2026-11-04
+
+# Batch 1 cues (working-draft.md, `## Audio notes`). level_db: a bed's level relative to
+# the voice in the gaps; duck_db: its extra reduction under speech; highpass: several takes came
+# back mostly sub-bass rumble, which LUFS barely counts, so the beds are filtered first.
+# Stop 1: under the opening, Billie in the harbour.
+[sfx.harbour]
+prompt = "Calm estuary water lapping gently against wooden pilings and a moored hull, a few distant gulls, a faint low hum of a port far away, steady, no ship horn, no bells, no music, no voices"
+duration = 15
+loop = true
+highpass = 120         # Hz: cut the sub-bass rumble before setting the level
+level_db = -9
+duck_db = -13
+
+# Stop 1: after Billie's first wild tail-walk.
+[sfx.dolphin-blow]
+prompt = "A dolphin surfacing close by in calm water: one sharp puff of breath through its blowhole, then a soft splash as it dives again, no music, no voices"
+duration = 3
+level_db = -8
+
+# Stop 2: under the Kaurna Country passage.
+[sfx.plains]
+prompt = "Open dry grassland on a mild morning, a light warm breeze through long grass, a few distant Australian magpies carolling, steady, no traffic, no music, no voices"
+duration = 15
+loop = true
+highpass = 120         # Hz: cut the sub-bass rumble before setting the level
+level_db = -10
+duck_db = -13
+
+# Stop 2: at "a paper one", before the Letters Patent.
+[sfx.parchment]
+prompt = "A large old stiff paper document being unfolded on a wooden desk, crisp creases and a soft rustle, close and quiet, no music, no voices"
+duration = 2.5
+level_db = -8
+
+# Batch 2 cues. Stop 3: under the Thumm interview.
+[sfx.camp-night]
+prompt = "A still night in a dry inland Australian camp, crickets, a faint breeze, the occasional creak of a timber hut, steady, no voices, no music, no dogs"
+duration = 15
+loop = true
+highpass = 120         # Hz: cut the sub-bass rumble before setting the level
+level_db = -10
+duck_db = -13
+
+# Stop 3: after "popping all over and under the huts".
+[sfx.bottle-pop]
+prompt = "A muffled pop of a cap blowing off a bottle under a wooden floor, followed by a soft fizz of bubbles, playful, no breaking glass, no music, no voices"
+duration = 2.5
+level_db = -8
+
+# Stop 4: under the opening, the Centennial Cellar.
+[sfx.cellar]
+prompt = "A cool quiet stone wine cellar, faint room tone, a slow distant water drip, the slight creak of old timber barrels, steady, no voices, no music"
+duration = 15
+loop = true
+highpass = 120         # Hz: cut the sub-bass rumble before setting the level
+level_db = -10
+duck_db = -13
+
+# Stop 4: before "Benno died long before his deadline".
+[sfx.cask-knock]
+prompt = "Two soft knuckle knocks on a large full wooden wine cask, deep and hollow, close, dry, no music, no voices"
+duration = 2
+level_db = -8
+
+# Stop 5: under the opening, the German accent of the valley.
+[sfx.village]
+prompt = "A quiet country town on a weekday morning, birdsong, a light breeze, a single distant church bell, steady, no traffic, no voices, no music"
+duration = 15
+loop = true
+highpass = 120         # Hz: cut the sub-bass rumble before setting the level
+level_db = -10
+duck_db = -13
+
+# Stop 5: after the place names are struck off.
+[sfx.pen-scratch]
+prompt = "A steel dip pen scratching firmly across paper, as if striking out a line of writing, close and quiet, no music, no voices"
+duration = 2
+level_db = -8
+
+# Batch 3 cues. Stop 6: under the opening, Hemera's vineyard.
+[sfx.vineyard]
+prompt = "A vineyard on a warm still morning, a light breeze through vine leaves, a few bees, distant small birds, steady, no voices, no machinery, no music"
+duration = 15
+loop = true
+highpass = 120         # Hz: cut the sub-bass rumble before setting the level
+level_db = -10
+duck_db = -13
+
+# Stop 6: under the night shift (microbats and insect hunters).
+[sfx.dusk]
+prompt = "Dusk in a country vineyard, crickets starting up, a soft flutter of small wings, one distant owl call, steady, no voices, no music"
+duration = 15
+loop = true
+highpass = 120         # Hz: cut the sub-bass rumble before setting the level
+level_db = -10
+duck_db = -13
+
+# Stop 7: under the 1859 competition.
+[sfx.hall]
+prompt = "A small wooden nineteenth-century public hall before a ceremony, a quiet murmur of people settling, a chair scraping, floorboards creaking, no applause, no music, no clear words"
+duration = 15
+loop = true
+highpass = 120         # Hz: cut the sub-bass rumble before setting the level
+level_db = -11
+duck_db = -13
+
+# Stop 7: after the four songs on the 1977 ballot.
+[sfx.ballot]
+prompt = "A paper ballot being folded and dropped through the slot of a cardboard ballot box, close and quiet, no music, no voices"
+duration = 2.5
+level_db = -8
+
+# Stop 8: under the opening, the shorebird coast.
+[sfx.shorebirds]
+prompt = "A tidal mudflat at evening, gentle wind, shallow water lapping, the soft high calls of small sandpipers in the distance, steady, no gulls screaming, no voices, no music"
+duration = 15
+loop = true
+highpass = 120         # Hz: cut the sub-bass rumble before setting the level
+level_db = -9
+duck_db = -13
+
+# Stop 8: after the Bolivar lagoons report.
+[sfx.wings]
+prompt = "A small flock of shorebirds lifting off together from shallow water, a soft rush of wings and a few high calls, then fading away, no music, no voices"
+duration = 3
+level_db = -8
+
+# --- Route (1-route.md) ------------------------------------------------------------
+# A coach day tour: the roads are a best guess from the venues in their published order
+# (plan.md; 1-route.md, "When someone else drives"). Waits at the venues between the ends
+# aren't modelled, so plan-check's road times between valley stops are too short.
+[route]
+estimated = true                 # plan-check: off-route triggers, radii to 10 km (task 013)
+end = [-34.77750, 138.48268]     # Outer Harbor passenger terminal
+
+# Terminal -> OTR Bolivar (bus boards) -> Yaldara -> Seppeltsfield -> Tanunda -> Hemera ->
+# Kies (lunch) -> Jacob's Creek (drive-by) -> chocolate company -> Ubertas.
+[route.outbound]
+points = [
+  [-34.77750, 138.48268], [-34.76861, 138.59340], [-34.57517, 138.87473],
+  [-34.48922, 138.91841], [-34.52463, 138.95882], [-34.59958, 138.90310],
+  [-34.59427, 138.88364], [-34.56474, 138.93330], [-34.50611, 138.97684],
+  [-34.45823, 139.01722],
+]
+wait = 40
+
+# Ubertas -> OTR Bolivar -> terminal. The return transfer isn't known; OSRM picks the roads.
+[route.return]
+points = [[-34.45823, 139.01722], [-34.76861, 138.59340], [-34.77750, 138.48268]]
+
+# --- Stops (2-stops.md) ------------------------------------------------------------
+# Eight stories from source/research.stops.md, its pins and radii. Radii are wide for the
+# route's uncertainty (2-stops.md, "Uncertain routes"). Nobody drives to them: nav = false.
+
+[stops.stop-1]
+lat = -34.77750
+lon = 138.48268
+radius = 2000
+place = "The Port River at Outer Harbor"
+label = "Outer Harbor"
+nav = false
+teaser = "A dolphin, a few weeks in a dolphinarium, and a fad that spread through the wild."
+
+[stops.stop-2]
+lat = -34.76861
+lon = 138.59340
+radius = 5000
+place = "Leaving Bolivar for the Adelaide Plains"
+label = "Bolivar"
+nav = false
+teaser = "Two maps of the plains you're crossing, and a promise in the colony's founding papers."
+
+[stops.stop-2.song]
+title = "Ngana Nyunyi"
+artist = "Tilly Tjala Thomas"
+spotify = "https://open.spotify.com/track/0WDkLOBEONMzJLvFBdP3Xi"
+length = "3:58"
+why = "A South Australian song in Nukunu and English, born from a family car game."
+
+[stops.stop-3]
+lat = -34.57517
+lon = 138.87473
+radius = 2000
+place = "Approaching Château Yaldara, Lyndoch"
+label = "Château Yaldara"
+nav = false
+teaser = "A winemaker interned in wartime, and what was going on under the camp huts."
+
+[stops.stop-4]
+lat = -34.48922
+lon = 138.91841
+radius = 2000
+place = "Approaching Seppeltsfield"
+label = "Seppeltsfield"
+nav = false
+teaser = "A cask set aside in 1878, with an order nobody alive could see carried out."
+
+[stops.stop-4.song]
+title = "Time In A Bottle"
+artist = "Jim Croce"
+spotify = "https://open.spotify.com/track/0JPtzuxDX0HOBspO2Urh5H"
+length = "2:29"
+why = "For a wine laid down in 1878 and not to be bottled for a hundred years."
+
+[stops.stop-5]
+lat = -34.52463
+lon = 138.95882
+radius = 2500
+place = "Tanunda"
+label = "Tanunda"
+nav = false
+teaser = "Why this valley sounds German, and what happened to its place names in 1918."
+
+[stops.stop-6]
+lat = -34.59958
+lon = 138.90310
+radius = 1500
+place = "Approaching Hemera Estate, Lyndoch"
+label = "Hemera Estate"
+nav = false
+teaser = "Vines planted in 1912, and the millimetre-long insect they must never meet."
+
+[stops.stop-7]
+lat = -34.59733
+lon = 138.74489
+radius = 8000
+place = "Passing Gawler on the way home"
+label = "Gawler"
+nav = false
+teaser = "A town that ran a contest for a national song, and how the nation later voted."
+
+[stops.stop-7.song]
+title = "Song Of Australia (version 2)"
+artist = "Peter Dawson"
+spotify = "https://open.spotify.com/track/1r7FID7F2xL7a6JBQbi9HV"
+length = "2:27"
+why = "The song Gawler chose in 1859, and Australia voted on in 1977."
+
+[stops.stop-8]
+lat = -34.76861
+lon = 138.59340
+radius = 10000
+place = "The coast near Bolivar, on the way back"
+label = "Bolivar wetlands"
+nav = false
+teaser = "The birds on this coast from Siberia and Alaska, and their unlikely stopover."

@@ -49,8 +49,9 @@ def make_tour(tours, slug="demo", title="Demo Walk", table="tour"):
 
 def test_hobart_pages_match_committed(tmp_path):
     """The committed page and manifest are what the templates produce: edit site/player/, then publish."""
-    (tmp_path / "hobart").mkdir()
-    shutil.copyfile(SITE / "hobart" / "tour.json", tmp_path / "hobart" / "tour.json")
+    for data in SITE.glob("*/tour.json"):  # every published tour, for the tour list
+        (tmp_path / data.parent.name).mkdir()
+        shutil.copyfile(data, tmp_path / data.parent.name / "tour.json")
     publish.pages(tmp_path, config.TOURS_DIR)
     for name in ("index.html", "manifest.webmanifest"):
         assert (tmp_path / "hobart" / name).read_text() == (SITE / "hobart" / name).read_text(), name
